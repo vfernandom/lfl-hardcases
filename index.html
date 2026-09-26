@@ -112,4 +112,594 @@
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition:
+            transition: all 0.3s ease;
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+
+        .hero .cta:hover {
+            background: #C1303A;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(230, 57, 70, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+            .hero p {
+                font-size: 1rem;
+            }
+        }
+
+        /* GRID DE PRODUCTOS */
+        .products-section {
+            background: #0F0F0F;
+            padding: 4rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: white;
+            letter-spacing: 1px;
+        }
+
+        .section-title span {
+            color: #E63946;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .product-card {
+            background: #1A1A1A;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease backwards;
+        }
+
+        .product-card:nth-child(1) { animation-delay: 0.1s; }
+        .product-card:nth-child(2) { animation-delay: 0.2s; }
+        .product-card:nth-child(3) { animation-delay: 0.3s; }
+        .product-card:nth-child(4) { animation-delay: 0.4s; }
+        .product-card:nth-child(5) { animation-delay: 0.5s; }
+        .product-card:nth-child(6) { animation-delay: 0.6s; }
+        .product-card:nth-child(7) { animation-delay: 0.7s; }
+        .product-card:nth-child(8) { animation-delay: 0.8s; }
+        .product-card:nth-child(9) { animation-delay: 0.9s; }
+
+        .product-card:hover {
+            border-color: #E63946;
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(230, 57, 70, 0.2);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 280px;
+            background: #2A2A2A;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .product-card:hover .product-image img {
+            transform: scale(1.05);
+        }
+
+        .product-info {
+            padding: 1.5rem;
+        }
+
+        .product-number {
+            color: #E63946;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .product-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: white;
+            margin: 0.5rem 0;
+        }
+
+        .product-desc {
+            color: #999;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        .product-cta {
+            display: inline-block;
+            color: #E63946;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .product-cta:hover {
+            color: #FFF;
+            transform: translateX(5px);
+        }
+
+        /* BENEFITS SECTION */
+        .benefits-section {
+            background: linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%);
+            padding: 4rem 2rem;
+            border-top: 2px solid #E63946;
+            border-bottom: 2px solid #E63946;
+        }
+
+        .benefits-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .benefit-card {
+            text-align: center;
+            color: white;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .benefit-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #E63946;
+        }
+
+        .benefit-title {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .benefit-desc {
+            color: #AAA;
+            font-size: 0.95rem;
+        }
+
+        /* CUSTOM SECTION */
+        .custom-section {
+            background: #0F0F0F;
+            padding: 4rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .custom-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        .custom-text h2 {
+            font-size: 2.2rem;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .custom-text h2 span {
+            color: #E63946;
+        }
+
+        .custom-text p {
+            color: #AAA;
+            margin-bottom: 1.5rem;
+            line-height: 1.8;
+        }
+
+        .custom-features {
+            list-style: none;
+            margin-bottom: 2rem;
+        }
+
+        .custom-features li {
+            color: #CCC;
+            margin-bottom: 0.8rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .custom-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #E63946;
+            font-weight: bold;
+        }
+
+        .custom-cta {
+            display: inline-block;
+            background: #E63946;
+            color: white;
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+
+        .custom-cta:hover {
+            background: #C1303A;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(230, 57, 70, 0.3);
+        }
+
+        .custom-image {
+            width: 100%;
+            height: 400px;
+            background: #1A1A1A;
+            border: 2px solid #E63946;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .custom-content {
+                grid-template-columns: 1fr;
+            }
+            .custom-image {
+                height: 300px;
+            }
+        }
+
+        /* CONTACT SECTION */
+        .contact-section {
+            background: linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%);
+            padding: 4rem 2rem;
+            border-top: 2px solid #E63946;
+        }
+
+        .contact-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .contact-container h2 {
+            font-size: 2.5rem;
+            color: white;
+            margin-bottom: 2rem;
+        }
+
+        .contact-container h2 span {
+            color: #E63946;
+        }
+
+        .contact-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .contact-method {
+            background: #0F0F0F;
+            padding: 2rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .contact-method:hover {
+            border-color: #E63946;
+            transform: translateY(-5px);
+        }
+
+        .contact-method-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #E63946;
+        }
+
+        .contact-method h3 {
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+
+        .contact-method p {
+            color: #AAA;
+        }
+
+        .contact-method a {
+            color: #E63946;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-method a:hover {
+            text-decoration: underline;
+        }
+
+        /* FOOTER */
+        footer {
+            background: #000;
+            border-top: 2px solid #E63946;
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+
+        /* ANIMATIONS */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header>
+        <nav>
+            <div class="logo">LFL <span>Hard Cases</span></div>
+            <ul class="nav-links">
+                <li><a href="#inicio">Inicio</a></li>
+                <li><a href="#productos">Productos</a></li>
+                <li><a href="#personalizados">Personalizados</a></li>
+                <li><a href="#contacto">Contacto</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero" id="inicio">
+        <h1>LFL <span>Hard Cases</span></h1>
+        <p>Protección Premium ✨ Para Tus Equipos Más Valiosos</p>
+        <p style="color: #999; font-size: 1rem; margin-bottom: 2rem;">Diseñados para durar. Construidos para proteger.</p>
+        <a href="#productos" class="cta">VER CATÁLOGO COMPLETO →</a>
+    </section>
+
+    <!-- PRODUCTS SECTION -->
+    <section class="products-section" id="productos">
+        <h2 class="section-title">Nuestros <span>9 Modelos</span></h2>
+        <div class="products-grid">
+            <!-- Producto 1 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/01_guitarra_acustica.png" alt="Guitarra Acústica">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">01. GUITARRA ACÚSTICA</div>
+                    <h3 class="product-name">Protección & Estilo</h3>
+                    <p class="product-desc">Protección y estilo en cada viaje</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 2 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/02_guitarra_electrica.png" alt="Guitarra Eléctrica">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">02. GUITARRA ELÉCTRICA</div>
+                    <h3 class="product-name">Máxima Seguridad</h3>
+                    <p class="product-desc">Máxima seguridad para tu instrumento</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 3 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/03_bajo_electrico.png" alt="Bajo Eléctrico">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">03. BAJO ELÉCTRICO</div>
+                    <h3 class="product-name">Resistencia Premium</h3>
+                    <p class="product-desc">Resistencia para grandes sonidos</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 4 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/04_violin.png" alt="Violín">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">04. VIOLÍN</div>
+                    <h3 class="product-name">Protección Precisa</h3>
+                    <p class="product-desc">Protección precisa en todo momento</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 5 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/05_controlador_dj.png" alt="Controlador DJ">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">05. CONTROLADOR DJ</div>
+                    <h3 class="product-name">Diseño Profesional</h3>
+                    <p class="product-desc">Diseño profesional para tus mezclas</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 6 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/06_rack_dj_audio.png" alt="Rack DJ/Audio">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">06. RACK DJ / AUDIO</div>
+                    <h3 class="product-name">Organización Total</h3>
+                    <p class="product-desc">Organización y seguridad en un evento</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 7 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/07_laptop_accesorios.png" alt="Laptop/Accesorios">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">07. LAPTOP / ACCESORIOS</div>
+                    <h3 class="product-name">Protección Total</h3>
+                    <p class="product-desc">Todo lo que necesitas protegido</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 8 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/08_pedalboard.png" alt="Pedalboard">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">08. PEDALBOARD</div>
+                    <h3 class="product-name">Listo Para Escenario</h3>
+                    <p class="product-desc">Listo para cualquier escenario</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+
+            <!-- Producto 9 -->
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/09_speaker_transporte.png" alt="Speaker/Transporte">
+                </div>
+                <div class="product-info">
+                    <div class="product-number">09. SPEAKER / TRANSPORTE</div>
+                    <h3 class="product-name">Movilidad Segura</h3>
+                    <p class="product-desc">Movilidad segura para equipos grandes</p>
+                    <a href="#contacto" class="product-cta">Consultar →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- BENEFITS SECTION -->
+    <section class="benefits-section">
+        <div class="benefits-container">
+            <div class="benefit-card">
+                <div class="benefit-icon">✓</div>
+                <h3 class="benefit-title">Protección MIL-SPEC</h3>
+                <p class="benefit-desc">Cumple estándares militares de durabilidad</p>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">✓</div>
+                <h3 class="benefit-title">100% Personalizable</h3>
+                <p class="benefit-desc">Tu logo, tus colores, tus especificaciones</p>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">✓</div>
+                <h3 class="benefit-title">Garantía 5 Años</h3>
+                <p class="benefit-desc">Protección total sobre tus equipos</p>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">✓</div>
+                <h3 class="benefit-title">Entrega Rápida</h3>
+                <p class="benefit-desc">Fabricación ágil según demanda</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CUSTOM SECTION -->
+    <section class="custom-section" id="personalizados">
+        <h2 class="section-title">Casos <span>Personalizados</span></h2>
+        <div class="custom-content">
+            <div class="custom-text">
+                <h2>Tu Especificación <span>Es Nuestra Prioridad</span></h2>
+                <p>No encontraste el caso exacto que necesitas? En LFL creamos soluciones a medida para tus equipos únicos. Desde dimensiones especiales hasta interiores completamente customizados.</p>
+                <ul class="custom-features">
+                    <li>Medidas exactas según tus necesidades</li>
+                    <li>Interiores diseñados para tu equipo</li>
+                    <li>Tu logo estampado en el exterior</li>
+                    <li>Paleta de colores personalizada</li>
+                    <li>Materiales premium seleccionados</li>
+                    <li>Producción en lotes mínimos</li>
+                </ul>
+                <a href="#contacto" class="custom-cta">SOLICITAR PRESUPUESTO →</a>
+            </div>
+            <div class="custom-image">
+                Imagen de caso personalizado
+            </div>
+        </div>
+    </section>
+
+    <!-- CONTACT SECTION -->
+    <section class="contact-section" id="contacto">
+        <div class="contact-container">
+            <h2>¿Listo Para Proteger <span>Tu Equipo?</span></h2>
+            <p style="color: #AAA; font-size: 1.1rem; margin-bottom: 2rem;">Contactanos hoy y obtén un presupuesto personalizado</p>
+            <div class="contact-methods">
+                <div class="contact-method">
+                    <div class="contact-method-icon">📧</div>
+                    <h3>Email</h3>
+                    <p><a href="mailto:ventas@lflhardcases.com">ventas@lflhardcases.com</a></p>
+                </div>
+                <div class="contact-method">
+                    <div class="contact-method-icon">💬</div>
+                    <h3>WhatsApp</h3>
+                    <p><a href="https://wa.me/595971234567">+595 971 234 567</a></p>
+                </div>
+                <div class="contact-method">
+                    <div class="contact-method-icon">📱</div>
+                    <h3>Teléfono</h3>
+                    <p><a href="tel:+595971234567">+595 971 234 567</a></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>&copy; 2024 LFL Hard Cases. Todos los derechos reservados. | Fabricado en Paraguay con ❤️</p>
+    </footer>
+</body>
+</html>
