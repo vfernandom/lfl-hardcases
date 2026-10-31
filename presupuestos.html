@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LFL Hardcase · Presupuestos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f1ee; --panel:#ffffff; --ink:#16181b; --ink2:#3d3f43; --muted:#73716c; --line:#e2e0db; --line2:#d3d0c9;
+  --side:#141619; --side-ink:#cbc6bd; --side-hi:#ffffff;
+  --accent:#d9480f; --accent-soft:#fdeee6; --accent-ink:#ffffff;
+  --ok:#2b8a3e; --ok-soft:#e6f4ea; --warn:#b7791f; --warn-soft:#fdf3e1; --bad:#c92a2a; --bad-soft:#fdeaea; --info:#1c6ed4; --info-soft:#e7f0fc;
+  --neutral-soft:#eceae6;
+  --r:10px; --shadow:0 1px 2px rgba(20,22,25,.06),0 4px 16px rgba(20,22,25,.05);
+  --fh:'Barlow Condensed',system-ui,sans-serif; --fb:'Barlow',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--fb);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.num,.tab{font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--fh);font-weight:700;letter-spacing:.01em;margin:0}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:21px}
+h3{font-size:17px}
+a{color:var(--accent)}
+
+/* layout */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{background:var(--side);color:var(--side-ink);padding:22px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px}
+.brand-mark{width:36px;height:36px;border-radius:7px;background:linear-gradient(145deg,#2a2d31,#0e0f11);border:2px solid #8f8a82;position:relative;flex:none}
+.brand-mark:before,.brand-mark:after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:#b9b3a9;top:-4px}
+.brand-mark:before{left:-4px}.brand-mark:after{right:-4px}
+.brand-mark i{position:absolute;left:8px;right:8px;top:14px;height:4px;border-radius:2px;background:var(--accent)}
+.brand b{font-family:var(--fh);font-size:20px;color:#fff;letter-spacing:.04em;display:block;line-height:1}
+.brand small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8f8a82}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;color:var(--side-ink);text-decoration:none;font-weight:500}
+.nav a svg{width:19px;height:19px;flex:none;opacity:.85}
+.nav a:hover{background:#1f2226;color:#fff}
+.nav a.on{background:#25282d;color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
+.side-foot{margin-top:auto;font-size:12px;color:#8f8a82;padding:10px 8px;border-top:1px solid #2a2d31}
+.side-foot b{color:#cbc6bd;font-weight:600}
+.main{min-width:0;padding:28px 34px 60px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.top p{margin:4px 0 0;color:var(--muted)}
+.bnav{display:none}
+.show-m{display:none}
+
+/* components */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.pad{padding:18px 20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap;min-height:38px;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--ink2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover{background:#c03f0c}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.bad{color:var(--bad);border-color:#efc4c4}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.sm{padding:5px 10px;min-height:32px;font-size:13.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:16px;height:16px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;line-height:1.6}
+.tag .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.ej{background:#fff4d6;color:#8a5a00;border:1px dashed #e0b44c;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 7px;border-radius:5px;font-weight:700}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--ink2)}
+label.f span.h{font-weight:400;color:var(--muted);font-size:12px}
+.in{border:1px solid var(--line2);border-radius:7px;padding:8px 10px;background:#fff;min-height:38px;width:100%}
+.in:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.in.r{text-align:right}
+textarea.in{min-height:70px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+table.t{width:100%;border-collapse:collapse}
+.t th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+.t td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.t tr:last-child td{border-bottom:0}
+.t tr.click{cursor:pointer}
+.t tr.click:hover td{background:#faf9f7}
+.t .r{text-align:right}
+.empty{padding:36px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.note{border-radius:8px;padding:10px 12px;font-size:13.5px;display:flex;gap:9px;align-items:flex-start}
+.note.warn{background:var(--warn-soft);color:#7a4f0e}
+.note.info{background:var(--info-soft);color:#174f96}
+.note.bad{background:var(--bad-soft);color:#8f1d1d}
+.note.ok{background:var(--ok-soft);color:#1f6430}
+.note svg{width:17px;height:17px;flex:none;margin-top:1px}
+.banner{position:sticky;top:0;z-index:30;background:#fff4d6;color:#7a4f0e;border-bottom:1px solid #f0d58e;padding:8px 16px;font-size:13.5px;text-align:center}
+.seg{display:inline-flex;background:#e9e7e2;border-radius:8px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:6px;font-weight:600;font-size:13.5px;cursor:pointer;color:var(--ink2)}
+.seg button.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);color:var(--ink)}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.kpi{padding:16px 18px}
+.kpi .l{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.kpi .v{font-family:var(--fh);font-size:34px;font-weight:700;line-height:1.1;margin-top:6px}
+.kpi .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+.dash{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:10px;font-size:13.5px}
+.bar .tr{height:14px;background:#f0eeea;border-radius:4px;overflow:hidden}
+.bar .fl{height:100%;background:var(--ink2);border-radius:0 4px 4px 0;min-width:2px;transition:width .3s}
+.bar .fl.acc{background:var(--accent)}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.bar:hover .fl{filter:brightness(1.25)}
+
+/* editor */
+.ed{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
+.sum{position:sticky;top:18px}
+.sum .ln{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+.sum .ln span:last-child{font-variant-numeric:tabular-nums}
+.sum .tot{border-top:2px solid var(--ink);margin-top:8px;padding-top:10px;font-family:var(--fh);font-size:28px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline}
+.sum .tot small{font-family:var(--fb);font-size:12.5px;font-weight:600;color:var(--muted)}
+.item{border:1px solid var(--line);border-radius:9px;margin-bottom:12px;background:#fcfbfa}
+.item-h{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.item-h .code{font-family:var(--fh);font-weight:700;background:var(--ink);color:#fff;border-radius:5px;padding:1px 8px;font-size:15px}
+.item-b{padding:12px 14px}
+.lines{width:100%;border-collapse:collapse;font-size:13.5px}
+.lines td,.lines th{padding:5px 4px}
+.lines th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;font-weight:600}
+.lines .in{min-height:32px;padding:5px 8px}
+.x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:5px}
+.x:hover{background:var(--bad-soft);color:var(--bad)}
+.sec{margin-bottom:16px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(15,16,18,.45);z-index:50;display:flex;justify-content:flex-end}
+.drawer{background:var(--bg);width:min(760px,100%);height:100%;overflow:auto;box-shadow:-10px 0 40px rgba(0,0,0,.2);animation:slide .18s ease-out}
+@keyframes slide{from{transform:translateX(30px);opacity:.6}to{transform:none;opacity:1}}
+.dr-h{background:var(--panel);border-bottom:1px solid var(--line);padding:18px 22px;position:sticky;top:0;z-index:2}
+.dr-b{padding:18px 22px;display:flex;flex-direction:column;gap:14px}
+.dlg-ov{position:fixed;inset:0;background:rgba(15,16,18,.5);z-index:80;display:grid;place-items:center;padding:16px}
+.dlg{background:#fff;border-radius:12px;max-width:440px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.dlg h3{margin-bottom:8px}
+.steps{display:flex;gap:4px;margin-top:12px}
+.steps i{flex:1;height:5px;border-radius:3px;background:#e4e2dd}
+.steps i.on{background:var(--ink2)}
+.steps i.cur{background:var(--accent)}
+.steps i.lost{background:var(--bad)}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 14px 20px;font-size:13.5px}
+.tl li:before{content:"";position:absolute;left:4px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--ink2)}
+.tl li:after{content:"";position:absolute;left:7.5px;top:16px;bottom:0;width:1px;background:var(--line2)}
+.tl li:last-child:after{display:none}
+.tl time{color:var(--muted);font-size:12px;display:block}
+.vtabs{display:flex;gap:6px;flex-wrap:wrap}
+.vtabs button{border:1px solid var(--line2);background:#fff;border-radius:6px;padding:4px 10px;font-weight:600;cursor:pointer;font-size:13px}
+.vtabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;z-index:99;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:90vw}
+
+/* chat */
+.chatwrap{display:grid;grid-template-columns:minmax(0,430px) 1fr;gap:22px;align-items:start}
+.phone{background:#0b141a;border-radius:26px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,.18)}
+.ph-h{display:flex;align-items:center;gap:10px;padding:10px 12px;color:#e9edef}
+.ph-h .av{width:38px;height:38px;border-radius:50%;background:var(--accent);display:grid;place-items:center;font-family:var(--fh);font-weight:700;color:#fff}
+.ph-h b{display:block;font-size:15px}.ph-h small{color:#8696a0;font-size:12px}
+.chat{background:#efeae2;background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:14px 14px;height:560px;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:6px;border-radius:14px 14px 0 0}
+.msg{max-width:86%;padding:7px 10px 6px;border-radius:9px;font-size:14.5px;line-height:1.38;box-shadow:0 1px .5px rgba(0,0,0,.13);white-space:pre-wrap;word-wrap:break-word}
+.msg.bot{background:#fff;align-self:flex-start;border-top-left-radius:2px}
+.msg.me{background:#d9fdd3;align-self:flex-end;border-top-right-radius:2px}
+.msg time{display:block;text-align:right;font-size:10.5px;color:#667781;margin-top:2px}
+.msg .calc{font-variant-numeric:tabular-nums;white-space:normal}
+.msg .calc div{display:flex;justify-content:space-between;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:95%}
+.chips button{background:#fff;border:1px solid #cfd8dc;color:#027eb5;border-radius:18px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer}
+.chips button:hover{background:#f0f9ff}
+.ph-in{display:flex;gap:8px;padding:8px;background:#f0f2f5;border-radius:0 0 14px 14px}
+.ph-in input{flex:1;border:0;border-radius:20px;padding:10px 14px;background:#fff;min-width:0}
+.ph-in input:focus{outline:none}
+.ph-in button{width:42px;height:42px;border-radius:50%;border:0;background:#00a884;color:#fff;cursor:pointer;display:grid;place-items:center;flex:none}
+.ph-in button svg{width:20px;height:20px}
+
+/* responsive */
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.dash{grid-template-columns:1fr}.ed{grid-template-columns:1fr}.sum{position:static}.chatwrap{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .side{display:none}
+  .main{padding:16px 14px 92px}
+  h1{font-size:25px}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr 1fr}
+  .kpi .v{font-size:27px}
+  .bar{grid-template-columns:100px 1fr 74px;font-size:12.5px}
+  .bnav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--side);z-index:40;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .bnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#a7a198;text-decoration:none;font-size:10.5px;font-weight:600;padding:4px 0}
+  .bnav a svg{width:21px;height:21px}
+  .bnav a.on{color:#fff}
+  .bnav a.on svg{color:var(--accent)}
+  .hide-m{display:none}
+  .show-m{display:block!important}
+  .show-m .tag{white-space:normal}
+  .listq{max-width:none!important;flex-basis:100%}
+  .chat{height:calc(100vh - 400px);height:calc(100dvh - 400px);min-height:340px}
+  .phone{border-radius:16px;padding:6px}
+  .dr-h,.dr-b{padding-left:14px;padding-right:14px}
+  .t th,.t td{padding:9px 6px}
+  .t{font-size:14px}
+  .t .num b{font-size:13.5px}
+}
+@media (max-width:420px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="banner"></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="brand-mark"><i></i></div><div><b>LFL HARDCASE</b><small>Presupuestos</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot" id="sidefoot">Conectando…</div>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+<nav class="bnav" id="bnav"></nav>
+<div id="layer"></div>
+
+<script>
+/* ============ utilidades ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = (n, d=0) => { n = +n || 0; const neg = n < 0; n = Math.abs(n); let [i, f] = n.toFixed(d).split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (neg?'-':'') + i + (f ? ',' + f : ''); };
+const gs = n => '₲ ' + fmtN(Math.round(+n||0));
+const gsM = n => { n=+n||0; if (Math.abs(n) >= 1e9) return '₲ ' + fmtN(n/1e9,1) + ' mil M'; if (Math.abs(n) >= 1e6) return '₲ ' + fmtN(n/1e6,1) + ' M'; return gs(n); };
+const pct = (x, d=1) => (isFinite(x) ? fmtN(x*100, d) : '—') + '%';
+const pf = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const now = () => new Date().toISOString();
+const fDate = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('es-PY', {day:'2-digit', month:'2-digit', year:'numeric'}); };
+const fDT = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('es-PY', {day:'2-digit', month:'short'}) + ' ' + d.toLocaleTimeString('es-PY', {hour:'2-digit', minute:'2-digit'}); };
+const hhmm = () => new Date().toLocaleTimeString('es-PY', {hour:'2-digit', minute:'2-digit'});
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clone = o => JSON.parse(JSON.stringify(o));
+const durTxt = ms => { const h = ms/36e5; if (h < 1) return fmtN(ms/6e4) + ' min'; if (h < 48) return fmtN(h,1) + ' h'; return fmtN(h/24,1) + ' días'; };
+
+const IC = {
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>',
+  chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.5A8.4 8.4 0 1 1 21 11.5z"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5l18-8.5L3 3.5l.01 6.6L15 12 3.01 13.9z"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+};
+
+/* ============ dominio ============ */
+const ESTADOS = [
+  {k:'solicitud',   n:'Solicitud recibida',      c:'#55534f', bg:'var(--neutral-soft)'},
+  {k:'elaboracion', n:'En elaboración',          c:'#55534f', bg:'var(--neutral-soft)'},
+  {k:'pendiente',   n:'Pendiente de aprobación', c:'#9a6212', bg:'var(--warn-soft)'},
+  {k:'enviado',     n:'Presupuesto enviado',     c:'#1c6ed4', bg:'var(--info-soft)'},
+  {k:'negociacion', n:'En negociación',          c:'#7a4fc4', bg:'#f1ebfb'},
+  {k:'venta',       n:'Venta confirmada',        c:'#2b8a3e', bg:'var(--ok-soft)'},
+  {k:'perdido',     n:'Perdido / cancelado',     c:'#c92a2a', bg:'var(--bad-soft)'},
+];
+const EST = Object.fromEntries(ESTADOS.map((e,i) => [e.k, {...e, i}]));
+const ABIERTOS = ['solicitud','elaboracion','pendiente','enviado','negociacion'];
+const EMITIDOS = ['enviado','negociacion','venta','perdido'];
+const ROLES = [
+  {k:'placa', n:'Placa (fenólico)'}, {k:'perfil', n:'Perfil (aluminio)'}, {k:'espuma', n:'Espuma / forro'},
+  {k:'cierre', n:'Cierre'}, {k:'manija', n:'Manija'}, {k:'bisagra', n:'Bisagra'}, {k:'esquinero', n:'Esquinero'},
+  {k:'consumible', n:'Consumibles'}, {k:'otro', n:'Otro'}];
+const ROLN = Object.fromEntries(ROLES.map(r => [r.k, r.n]));
+// Cantidades por geometría para trabajos a medida: estimación inicial que el equipo debe revisar.
+const GEO_FIJAS = {cierre:2, manija:1, bisagra:2, esquinero:8, consumible:1};
+
+function estTag(k, aprobado){
+  const e = EST[k] || EST.solicitud;
+  let n = e.n;
+  if (k === 'pendiente' && aprobado) return `<span class="tag" style="background:var(--ok-soft);color:var(--ok)"><span class="dot"></span>Aprobado · listo para enviar</span>`;
+  return `<span class="tag" style="background:${e.bg};color:${e.c}"><span class="dot"></span>${esc(n)}</span>`;
+}
+
+const DEMO_PARAMS = {
+  ejemplo:true, tarifaHora:25000, gastosMensuales:6000000, horasProductivasMes:320, desperdicioPct:12,
+  margenObjetivo:35, margenMinimo:25, descuentoMax:10, redondeo:1000, ivaPct:0, validezDias:15, anticipoPct:50,
+  plazoEntrega:'A confirmar', seguimientoDias:7,
+  motivosPerdida:['Precio','Plazo de entrega','Competencia','Sin respuesta del cliente','Cambió la necesidad','Otro'],
+};
+const DEMO_MAT = [
+  ['Placa fenólico 9 mm','placa','m²',95000],['Perfil aluminio unión','perfil','m',28000],['Espuma 10 mm','espuma','m²',40000],
+  ['Cierre mariposa','cierre','unidad',35000],['Manija retráctil','manija','unidad',30000],['Bisagra','bisagra','unidad',15000],
+  ['Esquinero bola','esquinero','unidad',9000],['Remaches y consumibles (kit)','consumible','kit',15000],
+].map(([nombre,rol,unidad,precio]) => ({id:'m-'+rol, nombre, rol, unidad, precio, proveedor:'', ejemplo:true}));
+
+/* cálculo según propuesta: costo = materiales + MO + desperdicio + gastos + adicionales ; precio = costo / (1 - margen) */
+function calc(items, adicionales, P, margenPct, descuentoPct){
+  P = P || {};
+  let mat = 0, horas = 0;
+  const porItem = (items||[]).map(it => {
+    const q = +it.cantidad || 0;
+    const m = (it.lineas||[]).reduce((s,l) => s + (+l.precio||0)*(+l.cant||0), 0) * q;
+    const h = (+it.horas||0) * q;
+    mat += m; horas += h;
+    return {m, h};
+  });
+  const mo = horas * (+P.tarifaHora||0);
+  const desp = mat * (+P.desperdicioPct||0)/100;
+  const gastoHora = (+P.horasProductivasMes||0) > 0 ? (+P.gastosMensuales||0)/(+P.horasProductivasMes) : 0;
+  const gastos = horas * gastoHora;
+  const adic = (adicionales||[]).reduce((s,a) => s + (+a.monto||0), 0);
+  const costo = mat + mo + desp + gastos + adic;
+  const m = Math.min(Math.max(+margenPct||0, 0), 95)/100;
+  const precioLista = costo/(1-m);
+  const red = +P.redondeo || 1;
+  const precioRed = costo > 0 ? Math.ceil(precioLista/red)*red : 0;
+  const dto = precioRed * (Math.max(+descuentoPct||0,0))/100;
+  const precio = precioRed - dto;
+  const margenFinal = precio > 0 ? (precio - costo)/precio : 0;
+  const iva = (+P.ivaPct||0) > 0 ? precio*(+P.ivaPct)/100 : 0;
+  // costo unitario por ítem para mostrar
+  const unit = (items||[]).map((it,i) => {
+    const q = +it.cantidad||0; if (!q) return 0;
+    const mi = porItem[i].m, hi = porItem[i].h;
+    return (mi*(1+(+P.desperdicioPct||0)/100) + hi*((+P.tarifaHora||0)+gastoHora))/q;
+  });
+  return {mat, horas, mo, desp, gastos, gastoHora, adic, costo, precioLista, precioRed, dto, precio, margenFinal, iva, total: precio+iva, unit};
+}
+function paramSnap(P){ const s = {}; ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','redondeo','ivaPct','validezDias','anticipoPct','plazoEntrega','margenMinimo','margenObjetivo'].forEach(k => s[k] = P[k]); return s; }
+
+/* ============ estado ============ */
+const S = {
+  mode:'loading', db:null, user:null, me:null, canAdmin:false, canWrite:true, names:{},
+  params:null, materiales:[], productos:[], presupuestos:[], got:{},
+  route:'tablero', detailId:null, detailV:null, draft:null, editId:null,
+  f:{per:'90', prod:'', com:'', est:''}, lf:{est:'abiertos', q:''}, catTab:'param',
+};
+const P = () => S.params || {};
+const LS_KEY = 'lfl-presupuestos-prueba-v1';
+function persist(){ if (S.mode !== 'mem') return; try { localStorage.setItem(LS_KEY, JSON.stringify({params:S.params, materiales:S.materiales, productos:S.productos, presupuestos:S.presupuestos})); } catch(e) { toast('El navegador no permite guardar datos (¿modo privado?).'); } }
+
+/* ============ datos (base compartida o memoria) ============ */
+function banner(t){ $('#banner').innerHTML = t ? `<div class="banner">${t}</div>` : ''; }
+function toast(t){ const d = document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(), 2800); }
+
+async function init(){
+  render();
+  const loadTimer = setTimeout(() => { if (S.mode === 'loading') { banner('No se pudo llegar a la base de datos todavía. Revisá la conexión; la página sigue intentando.'); } }, 10000);
+  let db = null, user = null;
+  const use = window.claude && window.claude.use;
+  if (use) {
+    try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch(e) {}
+  }
+  S.user = user;
+  if (user) {
+    try { S.me = await user.id(); } catch(e) {}
+    try { S.canAdmin = !!(await user.canEdit()); } catch(e) {}
+    try { const w = await user.can('data.write'); S.canWrite = (w === null || w === undefined) ? true : !!w; } catch(e) {}
+  }
+  if (!db) {
+    clearTimeout(loadTimer);
+    S.mode = 'mem'; S.canAdmin = true;
+    let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {}
+    if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; }
+    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; }
+    try { S.me = localStorage.getItem(LS_KEY + '-nombre') || ''; } catch(e) {}
+    banner('Versión de prueba: los datos se guardan <b>solo en este dispositivo</b> y no se comparten con los demás.');
+    render();
+    if (!S.me) { const n = await dialog('Bienvenido', '<label class="f">¿Cómo te llamás?<span class="h">Aparece en el historial de cada presupuesto.</span><input class="in" id="dNom" placeholder="Ej. Fer"></label>', 'Empezar', () => ($('#dNom').value.trim() || 'Socio')); S.me = n || 'Socio'; try { localStorage.setItem(LS_KEY + '-nombre', S.me); } catch(e) {} render(); }
+    return;
+  }
+  S.db = db; S.mode = 'db';
+  const done = k => { S.got[k] = true; if (S.got.params && S.got.mat && S.got.prod && S.got.pres) { clearTimeout(loadTimer); if (S.mode==='db') banner(''); } };
+  const err = e => { clearTimeout(loadTimer); if (e && e.code === 'revoked') return; banner('No se pudo leer la base de datos (' + esc(e && e.code || 'error') + ').'); };
+  db.doc('config/params').onSnapshot(s => { S.params = s.exists ? s.data() : null; if (!s.metadata.fromCache) done('params'); render(); }, err);
+  db.collection('materiales').onSnapshot(s => { S.materiales = s.docs.map(d => ({id:d.id, ...d.data()})); if (!s.metadata.fromCache) done('mat'); render(); }, err);
+  db.collection('productos').onSnapshot(s => { S.productos = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b) => String(a.codigo).localeCompare(String(b.codigo))); if (!s.metadata.fromCache) done('prod'); render(); }, err);
+  db.collection('presupuestos').onSnapshot(s => { S.presupuestos = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b) => String(b.creado).localeCompare(String(a.creado))); if (!s.metadata.fromCache) done('pres'); resolveNames(); render(); }, err);
+}
+
+async function resolveNames(){
+  if (!S.user || !S.user.profiles) return;
+  const ids = new Set();
+  S.presupuestos.forEach(p => { if (p.creadoPor) ids.add(p.creadoPor); (p.historial||[]).forEach(h => h.por && ids.add(h.por)); });
+  if (S.me) ids.add(S.me);
+  const need = [...ids].filter(i => !(i in S.names));
+  if (!need.length) return;
+  try { const ps = await S.user.profiles(need); need.forEach(i => S.names[i] = (ps && ps[i] && ps[i].name) || ''); render(); } catch(e) {}
+}
+const nm = id => S.mode === 'mem' ? (id || 'Socio') : (S.names[id] || (id === S.me ? 'Vos' : 'Usuario'));
+
+async function put(col, id, data){
+  if (S.mode === 'mem') {
+    if (col === 'config') { S.params = clone(data); }
+    else { const arr = S[col]; const i = arr.findIndex(x => x.id === id); const v = {id, ...clone(data)}; if (i >= 0) arr[i] = v; else arr.push(v); if (col==='presupuestos') arr.sort((a,b)=>String(b.creado).localeCompare(String(a.creado))); }
+    persist(); render(); return;
+  }
+  try { await S.db.doc(col + '/' + id).set(data); }
+  catch(e){
+    if (e && e.code === 'invalid_argument') { toast('No tenés permiso para guardar esto. Pedile a un socio que te dé acceso de Colaborador o Editor.'); }
+    else if (e && e.code === 'quota_exceeded') { toast('La base llegó a su límite de espacio.'); }
+    else toast('No se pudo guardar (' + (e && e.code || 'error') + '). Probá de nuevo.');
+    throw e;
+  }
+}
+async function del(col, id){
+  if (S.mode === 'mem') { S[col] = S[col].filter(x => x.id !== id); persist(); render(); return; }
+  try { await S.db.doc(col + '/' + id).delete(); } catch(e){ toast('No se pudo eliminar (' + (e && e.code || 'error') + ').'); throw e; }
+}
+async function nextNumero(){
+  const maxOf = list => list.reduce((m,p) => { const n = parseInt(String(p.numero||p.id||'').replace(/\D/g,''),10); return isNaN(n) ? m : Math.max(m,n); }, 0);
+  if (S.mode === 'mem') return 'LFL-' + String(maxOf(S.presupuestos)+1).padStart(3,'0');
+  try {
+    const lock = S.db.doc('contadores/presupuestos');
+    for (let i = 0; i < 6; i++) { const r = await lock.acquire({holder: S.me || uid(), ttlMs: 8000}); if (r.acquired) break; await sleep(900 + Math.random()*600); }
+    const snap = await S.db.collection('presupuestos').get();
+    return 'LFL-' + String(maxOf(snap.docs.map(d => ({id:d.id, ...d.data()})))+1).padStart(3,'0');
+  } catch(e) { return 'LFL-' + String(maxOf(S.presupuestos)+1).padStart(3,'0'); }
+}
+
+/* ============ navegación ============ */
+const ROUTES = [
+  {k:'tablero', n:'Tablero', ic:'dash'}, {k:'presupuestos', n:'Presupuestos', ic:'list'},
+  {k:'nuevo', n:'Nuevo presupuesto', nm:'Nuevo', ic:'plus'}, {k:'asistente', n:'Asistente WhatsApp', nm:'Asistente', ic:'chat'},
+  {k:'catalogo', n:'Catálogo y costos', nm:'Catálogo', ic:'box'},
+];
+function go(r){ if (location.hash !== '#'+r) location.hash = r; else { S.route = r; render(); } }
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); S.route = ROUTES.some(r => r.k === h) ? h : 'tablero'; if (S.route === 'nuevo' && !S.draft) newDraft(); render(); window.scrollTo(0,0); });
+
+/* ============ render principal ============ */
+let rendering = false;
+function render(){
+  if (rendering) return; rendering = true;
+  requestAnimationFrame(() => { rendering = false; doRender(); });
+}
+function doRender(){
+  $('#nav').innerHTML = ROUTES.map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.n}</a>`).join('');
+  $('#bnav').innerHTML = ROUTES.map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.nm||r.n}</a>`).join('');
+  $('#sidefoot').innerHTML = S.mode === 'loading' ? 'Conectando…' : (S.mode==='mem' ? `Versión de prueba · datos en este dispositivo<br><b>${esc(S.me||'')}</b>` : `Base compartida<br><b>${S.canAdmin ? 'Rol: socio (aprueba)' : 'Rol: equipo comercial'}</b>`);
+  const v = $('#view');
+  // preservar foco en editor/chat
+  if (S.route === 'nuevo' && v.dataset.route === 'nuevo' && v.dataset.sig === draftSig()) { renderSummary(); renderLayer(); return; }
+  if (S.route === 'asistente' && v.dataset.route === 'asistente') { renderLayer(); return; }
+  v.dataset.route = S.route;
+  if (S.route === 'tablero') v.innerHTML = viewTablero();
+  else if (S.route === 'presupuestos') v.innerHTML = viewLista();
+  else if (S.route === 'nuevo') { if (!S.draft) newDraft(); v.innerHTML = viewEditor(); v.dataset.sig = draftSig(); renderSummary(); }
+  else if (S.route === 'asistente') { v.innerHTML = viewChat(); chatBoot(); }
+  else if (S.route === 'catalogo') v.innerHTML = viewCatalogo();
+  renderLayer();
+}
+function loadingOr(html){ return S.mode === 'loading' ? `<div class="card empty"><b>Cargando datos…</b>Conectando con la base compartida.</div>` : html; }
+function noParamsNote(){
+  if (S.params) return S.params.ejemplo ? `<div class="note warn" style="margin-bottom:14px">${IC.warn}<div>Los <b>costos y márgenes son de EJEMPLO</b>. Reemplazalos por los valores reales en <a href="#catalogo">Catálogo y costos</a> antes de enviar presupuestos a clientes.</div></div>` : '';
+  return `<div class="note bad" style="margin-bottom:14px">${IC.warn}<div>Todavía no hay parámetros de costo cargados. Un socio debe completarlos en <a href="#catalogo">Catálogo y costos</a>.</div></div>`;
+}
+
+/* ============ TABLERO ============ */
+function filtrados(){
+  const f = S.f; const lim = f.per === 'todo' ? 0 : Date.now() - (+f.per)*864e5;
+  return S.presupuestos.filter(p =>
+    (!lim || new Date(p.creado).getTime() >= lim) &&
+    (!f.prod || (p.productos||[]).includes(f.prod)) &&
+    (!f.com || p.creadoPor === f.com) &&
+    (!f.est || p.estado === f.est));
+}
+function viewTablero(){
+  const L = filtrados();
+  const emit = L.filter(p => EMITIDOS.includes(p.estado));
+  const ventas = L.filter(p => p.estado === 'venta');
+  const perd = L.filter(p => p.estado === 'perdido');
+  const valor = L.filter(p => p.estado !== 'perdido').reduce((s,p) => s + (+p.precioFinal||0), 0);
+  const montoV = ventas.reduce((s,p) => s + (+p.precioFinal||0), 0);
+  const conv = emit.length ? ventas.length/emit.length : NaN;
+  const ticket = ventas.length ? montoV/ventas.length : 0;
+  const costoV = ventas.reduce((s,p) => s + (+p.costoEstimado||0), 0);
+  const mEst = montoV ? (montoV - costoV)/montoV : NaN;
+  const conReal = ventas.filter(p => +p.costoReal > 0);
+  const mvR = conReal.reduce((s,p)=>s+(+p.precioFinal||0),0), cR = conReal.reduce((s,p)=>s+(+p.costoReal||0),0);
+  const mReal = mvR ? (mvR - cR)/mvR : NaN;
+  const tiempos = L.filter(p => p.enviadoAt && p.creado).map(p => new Date(p.enviadoAt) - new Date(p.creado));
+  const tResp = tiempos.length ? tiempos.reduce((a,b)=>a+b,0)/tiempos.length : null;
+
+  const byEst = ESTADOS.map(e => ({n:e.n, v:L.filter(p => p.estado === e.k).length, k:e.k}));
+  const maxE = Math.max(1, ...byEst.map(x => x.v));
+  const prodMap = {};
+  L.forEach(p => (p.items || []).forEach(it => { const k = it.codigo || 'A medida'; prodMap[k] = prodMap[k] || {c:0, v:0}; prodMap[k].c += (+it.cantidad||0); if (p.estado === 'venta') prodMap[k].v += (+it.cantidad||0); }));
+  const prods = Object.entries(prodMap).sort((a,b) => b[1].c - a[1].c).slice(0, 8);
+  const maxP = Math.max(1, ...prods.map(x => x[1].c));
+  const motivos = {}; perd.forEach(p => { const k = p.motivoPerdida || 'Sin motivo'; motivos[k] = (motivos[k]||0) + 1; });
+  const mot = Object.entries(motivos).sort((a,b)=>b[1]-a[1]); const maxM = Math.max(1, ...mot.map(x=>x[1]));
+  const segD = +(P().seguimientoDias || 7);
+  const pend = S.presupuestos.filter(p => p.estado === 'pendiente' || p.estado === 'solicitud' || p.estado === 'elaboracion' || (['enviado','negociacion'].includes(p.estado) && (Date.now() - new Date(p.actualizado||p.creado)) > segD*864e5));
+  const comerciales = [...new Set(S.presupuestos.map(p => p.creadoPor).filter(Boolean))];
+
+  return `
+  <div class="top"><div><h1>Tablero de gestión</h1><p>Actividad comercial, conversión y rentabilidad de los presupuestos.</p></div>
+    <button class="btn pri" onclick="go('nuevo')">${IC.plus} Nuevo presupuesto</button></div>
+  ${noParamsNote()}
+  <div class="card pad" style="margin-bottom:16px;padding:12px 16px"><div class="row">
+    <div class="seg">${[['30','30 días'],['90','90 días'],['365','12 meses'],['todo','Todo']].map(([k,n]) => `<button class="${S.f.per===k?'on':''}" onclick="S.f.per='${k}';render()">${n}</button>`).join('')}</div>
+    <select class="in" style="width:auto" onchange="S.f.prod=this.value;render()"><option value="">Todos los productos</option>${[...new Set([...S.productos.map(p=>p.codigo), ...S.presupuestos.flatMap(p=>p.productos||[])])].filter(Boolean).sort().map(c => `<option ${S.f.prod===c?'selected':''} value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+    <select class="in" style="width:auto" onchange="S.f.com=this.value;render()"><option value="">Todos los comerciales</option>${comerciales.map(c => `<option ${S.f.com===c?'selected':''} value="${esc(c)}">${esc(nm(c))}</option>`).join('')}</select>
+    <select class="in" style="width:auto" onchange="S.f.est=this.value;render()"><option value="">Todos los estados</option>${ESTADOS.map(e => `<option ${S.f.est===e.k?'selected':''} value="${e.k}">${e.n}</option>`).join('')}</select>
+  </div></div>
+  ${loadingOr(`
+  <div class="kpis">
+    <div class="card kpi"><div class="l">Presupuestos</div><div class="v num">${L.length}</div><div class="s">${emit.length} emitidos al cliente</div></div>
+    <div class="card kpi"><div class="l">Valor presupuestado</div><div class="v num">${gsM(valor)}</div><div class="s">Excluye perdidos</div></div>
+    <div class="card kpi"><div class="l">Ventas confirmadas</div><div class="v num">${ventas.length}</div><div class="s">${gsM(montoV)}</div></div>
+    <div class="card kpi"><div class="l">Conversión</div><div class="v num">${isNaN(conv)?'—':pct(conv,0)}</div><div class="s">Ventas ÷ emitidos</div></div>
+    <div class="card kpi"><div class="l">Ticket promedio</div><div class="v num">${ventas.length?gsM(ticket):'—'}</div><div class="s">Por venta confirmada</div></div>
+    <div class="card kpi"><div class="l">Margen estimado</div><div class="v num">${isNaN(mEst)?'—':pct(mEst)}</div><div class="s">Sobre ventas confirmadas</div></div>
+    <div class="card kpi"><div class="l">Margen real</div><div class="v num">${isNaN(mReal)?'—':pct(mReal)}</div><div class="s">${conReal.length} de ${ventas.length} ventas con costo real</div></div>
+    <div class="card kpi"><div class="l">Tiempo de respuesta</div><div class="v num">${tResp===null?'—':durTxt(tResp)}</div><div class="s">Promedio de alta → envío</div></div>
+  </div>
+  <div class="dash">
+    <div class="card pad"><h3 style="margin-bottom:14px">Presupuestos por estado</h3>
+      <div class="bars">${byEst.map(b => `<div class="bar" title="${esc(b.n)}: ${b.v}"><span>${esc(b.n)}</span><div class="tr"><div class="fl ${b.k==='venta'?'acc':''}" style="width:${b.v/maxE*100}%"></div></div><span class="v">${b.v}</span></div>`).join('')}</div>
+    </div>
+    <div class="card pad"><h3 style="margin-bottom:4px">Casos que necesitan seguimiento</h3><p class="small muted" style="margin:0 0 10px">Sin aprobar, sin calcular, o enviados sin movimiento hace más de ${segD} días.</p>
+      ${pend.length ? `<table class="t"><tbody>${pend.slice(0,8).map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td><b>${esc(p.numero)}</b><div class="small muted">${esc(p.cliente&&p.cliente.nombre)}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty"><b>Todo al día</b>No hay casos pendientes.</div>`}
+    </div>
+    <div class="card pad"><h3 style="margin-bottom:4px">Productos cotizados</h3><p class="small muted" style="margin:0 0 12px">Unidades cotizadas · <b style="color:var(--ink)">vendidas</b> a la derecha</p>
+      ${prods.length ? `<div class="bars">${prods.map(([k,x]) => `<div class="bar" title="${esc(k)}: ${x.c} cotizadas, ${x.v} vendidas"><span>${esc(k)}</span><div class="tr"><div class="fl" style="width:${x.c/maxP*100}%"></div></div><span class="v">${x.c} · <b>${x.v}</b></span></div>`).join('')}</div>` : `<div class="empty">Sin datos en el período.</div>`}
+    </div>
+    <div class="card pad"><h3 style="margin-bottom:14px">Motivos de pérdida</h3>
+      ${mot.length ? `<div class="bars">${mot.map(([k,v]) => `<div class="bar" title="${esc(k)}: ${v}"><span>${esc(k)}</span><div class="tr"><div class="fl" style="width:${v/maxM*100}%;background:var(--bad)"></div></div><span class="v">${v}</span></div>`).join('')}</div>` : `<div class="empty">Sin casos perdidos en el período.</div>`}
+    </div>
+  </div>`)}`;
+}
+
+/* ============ LISTA ============ */
+function viewLista(){
+  const q = S.lf.q.trim().toLowerCase();
+  const L = S.presupuestos.filter(p =>
+    (S.lf.est === 'todos' || (S.lf.est === 'abiertos' ? ABIERTOS.includes(p.estado) : p.estado === S.lf.est)) &&
+    (!q || [p.numero, p.cliente&&p.cliente.nombre, p.cliente&&p.cliente.empresa, ...(p.productos||[])].join(' ').toLowerCase().includes(q)));
+  return `
+  <div class="top"><div><h1>Presupuestos</h1><p>Cada caso conserva su número, versiones e historial.</p></div>
+    <button class="btn pri" onclick="go('nuevo')">${IC.plus} Nuevo</button></div>
+  <div class="row" style="margin-bottom:14px">
+    <div class="seg">${[['abiertos','Abiertos'],['venta','Ventas'],['perdido','Perdidos'],['todos','Todos']].map(([k,n]) => `<button class="${S.lf.est===k?'on':''}" onclick="S.lf.est='${k}';render()">${n}</button>`).join('')}</div>
+    <input class="in grow listq" style="max-width:320px" placeholder="Buscar número, cliente o producto" value="${esc(S.lf.q)}" oninput="S.lf.q=this.value;clearTimeout(window._qt);window._qt=setTimeout(()=>{const p=this.selectionStart;render();requestAnimationFrame(()=>{const i=document.querySelector('[data-q]');if(i){i.focus();i.setSelectionRange(p,p)}})},250)" data-q>
+  </div>
+  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>N°</th><th>Cliente</th><th class="hide-m">Productos</th><th class="r">Importe</th><th class="hide-m">Estado</th><th class="hide-m">Actualizado</th></tr></thead><tbody>
+    ${L.map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td style="white-space:nowrap"><b>${esc(p.numero)}</b><div class="small muted">v${(p.versiones||[]).length||0}</div></td>
+      <td>${esc(p.cliente&&p.cliente.nombre)}<div class="small muted">${esc(p.cliente&&p.cliente.empresa||'')}</div><div class="show-m" style="margin-top:4px">${estTag(p.estado, p.aprobado)}</div></td>
+      <td class="hide-m small">${esc((p.productos||[]).join(', ')||'—')}</td>
+      <td class="r num" style="white-space:nowrap"><b>${p.precioFinal ? gs(p.precioFinal) : '—'}</b></td>
+      <td class="hide-m">${estTag(p.estado, p.aprobado)}</td><td class="hide-m small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}
+  </tbody></table>` : `<div class="empty"><b>No hay presupuestos ${S.lf.est==='abiertos'?'abiertos':''}</b>Creá uno desde “Nuevo” o desde el Asistente.</div>`}</div>`)}`;
+}
+
+/* ============ EDITOR / CALCULADORA ============ */
+function newDraft(from){
+  const p = P();
+  S.draft = from ? clone(from) : {cliente:{nombre:'', telefono:'', empresa:'', email:''}, items:[], adicionales:[], margen: p.margenObjetivo ?? 35, descuento:0, notas:'', motivoCambio:''};
+}
+function draftSig(){ const d = S.draft; if (!d) return ''; return d.items.map(i => i.id + ':' + (i.lineas||[]).length).join('|') + '#' + d.adicionales.length + '#' + (S.editId||'') + '#' + S.materiales.length + '#' + S.productos.length + '#' + (S.params?1:0); }
+function matById(id){ return S.materiales.find(m => m.id === id); }
+function matByRol(r){ return S.materiales.find(m => m.rol === r); }
+function itemDesdeProducto(prod, cant){
+  return {id:uid(), tipo:'producto', productoId:prod.id, codigo:prod.codigo, nombre:prod.nombre, medidas:prod.medidas||'', cantidad:cant||1, horas:+prod.horas||0,
+    lineas:(prod.bom||[]).map(b => { const m = matById(b.materialId) || {}; return {materialId:b.materialId, nombre:m.nombre||b.nombre||'(material eliminado)', unidad:m.unidad||'', precio:+m.precio||0, cant:+b.cant||0}; })};
+}
+function lineasGeo(l, a, h){
+  l=+l||0; a=+a||0; h=+h||0;
+  const area = 2*(l*a + l*h + a*h)/10000, arist = 4*(l + a + h)/100;
+  const q = {placa: area, espuma: area, perfil: arist, ...GEO_FIJAS};
+  const out = [];
+  Object.entries(q).forEach(([rol, cant]) => { const m = matByRol(rol); if (m) out.push({materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0, cant:Math.round(cant*100)/100}); });
+  return out;
+}
+function itemMedida(l, a, h, cant, horas){
+  return {id:uid(), tipo:'medida', codigo:'A medida', nombre:'Case a medida', medidas: (l&&a&&h) ? `${l} × ${a} × ${h} cm` : '', dims:{l,a,h}, cantidad:cant||1, horas:+horas||0, lineas: (l&&a&&h) ? lineasGeo(l,a,h) : [], geo:true};
+}
+
+function viewEditor(){
+  const d = S.draft, p = S.presupuestos.find(x => x.id === S.editId);
+  const matOpts = sel => `<option value="">Elegir material…</option>` + S.materiales.map(m => `<option value="${esc(m.id)}" ${sel===m.id?'selected':''}>${esc(m.nombre)} (${esc(m.unidad)})</option>`).join('');
+  return `
+  <div class="top"><div><h1>${p ? `Nueva versión · ${esc(p.numero)}` : 'Nuevo presupuesto'}</h1><p>${p ? `Se guarda como v${(p.versiones||[]).length+1}; las versiones anteriores no se borran.` : 'Cargá el cliente, los productos y los adicionales. El precio se calcula solo.'}</p></div>
+    ${p ? `<button class="btn" onclick="cancelEdit()">Cancelar</button>` : ''}</div>
+  ${noParamsNote()}
+  <div class="ed">
+   <div>
+    <div class="card pad sec"><div class="sec-h"><h2>Cliente</h2></div>
+      <div class="grid2">
+        <label class="f">Nombre *<input class="in" data-b="cliente.nombre" value="${esc(d.cliente.nombre)}" ${p?'disabled':''}></label>
+        <label class="f">Empresa<input class="in" data-b="cliente.empresa" value="${esc(d.cliente.empresa)}" ${p?'disabled':''}></label>
+        <label class="f">WhatsApp <span class="h">con código de país, ej. 595981…</span><input class="in" inputmode="tel" data-b="cliente.telefono" value="${esc(d.cliente.telefono)}" ${p?'disabled':''}></label>
+        <label class="f">Email<input class="in" type="email" data-b="cliente.email" value="${esc(d.cliente.email)}" ${p?'disabled':''}></label>
+      </div>
+    </div>
+
+    <div class="card pad sec"><div class="sec-h"><h2>Productos</h2>
+      <div class="row">
+        <select class="in" style="width:auto" id="addProd"><option value="">${S.productos.length ? '+ Agregar del catálogo…' : 'Catálogo sin productos'}</option>${S.productos.map(x => `<option value="${esc(x.id)}">${esc(x.codigo)} – ${esc(x.nombre)}</option>`).join('')}</select>
+        <button class="btn sm" onclick="addMedida()">+ A medida</button></div></div>
+      ${!S.productos.length ? `<div class="note info" style="margin-bottom:12px">${IC.info}<div>El catálogo todavía no tiene productos. Podés cotizar <b>a medida</b> o cargar productos en <a href="#catalogo">Catálogo</a>.</div></div>` : ''}
+      ${d.items.length ? d.items.map((it, i) => `
+      <div class="item">
+        <div class="item-h"><span class="code">${esc(it.codigo)}</span><b class="grow">${esc(it.nombre)}</b>
+          <label class="row small" style="gap:6px">Cant.<input class="in r" style="width:70px" type="number" min="1" step="1" data-b="items.${i}.cantidad" value="${esc(it.cantidad)}"></label>
+          <label class="row small" style="gap:6px">Horas/u<input class="in r" style="width:76px" type="number" min="0" step="0.25" data-b="items.${i}.horas" value="${esc(it.horas)}"></label>
+          <button class="x" title="Quitar" onclick="rmItem(${i})">×</button></div>
+        <div class="item-b">
+          ${it.tipo === 'medida' ? `<div class="row small" style="margin-bottom:10px;gap:8px">Medidas (cm)
+            <input class="in r" style="width:72px" type="number" placeholder="Largo" data-b="items.${i}.dims.l" value="${esc(it.dims&&it.dims.l||'')}">×
+            <input class="in r" style="width:72px" type="number" placeholder="Ancho" data-b="items.${i}.dims.a" value="${esc(it.dims&&it.dims.a||'')}">×
+            <input class="in r" style="width:72px" type="number" placeholder="Alto" data-b="items.${i}.dims.h" value="${esc(it.dims&&it.dims.h||'')}">
+            <button class="btn sm" onclick="recalcGeo(${i})">Estimar materiales</button></div>
+            ${it.geo && it.lineas.length ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Cantidades estimadas por geometría (superficie y aristas de la caja + herrajes estándar). Revisalas antes de aprobar.</div></div>` : ''}` : (it.medidas ? `<div class="small muted" style="margin-bottom:8px">Medidas: ${esc(it.medidas)}</div>` : '')}
+          ${!(+it.horas) ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Falta el tiempo de fabricación: sin horas no se calcula mano de obra ni gastos de fábrica.</div></div>` : ''}
+          <table class="lines"><thead><tr><th>Material</th><th style="width:90px" class="r">Cant./u</th><th class="r hide-m" style="width:110px">Precio</th><th class="r" style="width:110px">Subtotal/u</th><th style="width:30px"></th></tr></thead><tbody>
+          ${(it.lineas||[]).map((l, j) => `<tr>
+            <td>${l.materialId && matById(l.materialId) ? `${esc(l.nombre)} <span class="muted small">(${esc(l.unidad)})</span>` : `<select class="in" data-mat="${i}.${j}">${matOpts(l.materialId)}</select>`}</td>
+            <td><input class="in r" type="number" min="0" step="0.01" data-b="items.${i}.lineas.${j}.cant" value="${esc(l.cant)}"></td>
+            <td class="r num hide-m small">${gs(l.precio)}</td>
+            <td class="r num" data-sub="${i}.${j}">${gs((+l.precio||0)*(+l.cant||0))}</td>
+            <td><button class="x" onclick="rmLinea(${i},${j})">×</button></td></tr>`).join('')}
+          </tbody></table>
+          <div class="row" style="margin-top:8px;justify-content:space-between"><button class="btn sm ghost" onclick="addLinea(${i})">+ Material</button>
+            <span class="small muted">Costo unitario aprox.: <b class="num" data-unit="${i}">—</b></span></div>
+        </div>
+      </div>`).join('') : `<div class="empty" style="padding:20px"><b>Sin productos</b>Agregá uno del catálogo o un trabajo a medida.</div>`}
+    </div>
+
+    <div class="card pad sec"><div class="sec-h"><h2>Adicionales</h2><div class="row">${['Embalaje','Transporte','Instalación'].map(n => `<button class="btn sm" onclick="addAdic('${n}')">+ ${n}</button>`).join('')}<button class="btn sm" onclick="addAdic('')">+ Otro</button></div></div>
+      ${d.adicionales.length ? `<table class="lines"><tbody>${d.adicionales.map((a, i) => `<tr><td><input class="in" placeholder="Concepto" data-b="adicionales.${i}.concepto" value="${esc(a.concepto)}"></td><td style="width:170px"><input class="in r" type="number" min="0" step="1000" placeholder="Monto ₲" data-b="adicionales.${i}.monto" value="${esc(a.monto)}"></td><td style="width:30px"><button class="x" onclick="rmAdic(${i})">×</button></td></tr>`).join('')}</tbody></table>` : `<p class="small muted" style="margin:0">Embalaje, transporte, instalación u otros servicios. Se suman al costo.</p>`}
+    </div>
+
+    <div class="card pad sec"><div class="sec-h"><h2>Condiciones</h2></div>
+      <div class="grid3">
+        <label class="f">Margen objetivo (%)<span class="h">Mínimo autorizado: ${esc(P().margenMinimo ?? '—')}%</span><input class="in r" type="number" min="0" max="90" step="0.5" data-b="margen" value="${esc(d.margen)}"></label>
+        <label class="f">Descuento (%)<span class="h">Máximo sin excepción: ${esc(P().descuentoMax ?? '—')}%</span><input class="in r" type="number" min="0" max="90" step="0.5" data-b="descuento" value="${esc(d.descuento)}"></label>
+        ${p ? `<label class="f">Motivo del cambio<span class="h">Queda en el historial</span><input class="in" data-b="motivoCambio" value="${esc(d.motivoCambio)}" placeholder="Ej. cliente pidió cambiar medidas"></label>` : '<div></div>'}
+      </div>
+      <label class="f" style="margin-top:12px">Notas para el cliente<textarea class="in" data-b="notas" placeholder="Color, terminación, observaciones…">${esc(d.notas)}</textarea></label>
+    </div>
+   </div>
+   <div class="sum card pad" id="sum"></div>
+  </div>`;
+}
+function renderSummary(){
+  const el = $('#sum'); if (!el || !S.draft) return;
+  const d = S.draft, c = calc(d.items, d.adicionales, P(), d.margen, d.descuento), Pp = P();
+  // subtotales en línea
+  d.items.forEach((it, i) => { (it.lineas||[]).forEach((l, j) => { const s = document.querySelector(`[data-sub="${i}.${j}"]`); if (s) s.textContent = gs((+l.precio||0)*(+l.cant||0)); }); const u = document.querySelector(`[data-unit="${i}"]`); if (u) u.textContent = gs(c.unit[i]); });
+  const bajoMin = c.precio > 0 && Pp.margenMinimo != null && c.margenFinal*100 < +Pp.margenMinimo - 1e-9;
+  const dtoAlto = Pp.descuentoMax != null && +d.descuento > +Pp.descuentoMax;
+  const falta = [];
+  if (!d.cliente.nombre.trim()) falta.push('nombre del cliente');
+  if (!d.items.length) falta.push('al menos un producto');
+  if (d.items.some(i => !(+i.horas))) falta.push('horas de fabricación');
+  if (d.items.some(i => !(i.lineas||[]).length)) falta.push('materiales de cada producto');
+  el.innerHTML = `
+    <h2 style="margin-bottom:10px">Resumen del cálculo</h2>
+    <div class="ln"><span>Materiales</span><span>${gs(c.mat)}</span></div>
+    <div class="ln"><span>Mano de obra <span class="muted small">${fmtN(c.horas,2)} h × ${gs(Pp.tarifaHora)}</span></span><span>${gs(c.mo)}</span></div>
+    <div class="ln"><span>Desperdicio <span class="muted small">${fmtN(Pp.desperdicioPct||0,1)}%</span></span><span>${gs(c.desp)}</span></div>
+    <div class="ln"><span>Gastos de fábrica <span class="muted small">${gs(c.gastoHora)}/h</span></span><span>${gs(c.gastos)}</span></div>
+    <div class="ln"><span>Adicionales</span><span>${gs(c.adic)}</span></div>
+    <div class="ln" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px;font-weight:700"><span>Costo total</span><span>${gs(c.costo)}</span></div>
+    <div class="ln"><span>Precio con margen ${fmtN(d.margen||0,1)}%</span><span>${gs(c.precioRed)}</span></div>
+    ${c.dto ? `<div class="ln"><span>Descuento ${fmtN(d.descuento,1)}%</span><span>− ${gs(c.dto)}</span></div>` : ''}
+    <div class="tot"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>
+    <div class="ln small muted"><span>${(+Pp.ivaPct) ? `+ IVA ${fmtN(Pp.ivaPct,1)}%: ${gs(c.iva)}` : 'Impuestos: sin configurar'}</span><span>Margen final: <b style="color:${bajoMin?'var(--bad)':'var(--ink)'}">${pct(c.margenFinal)}</b></span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      ${bajoMin ? `<div class="note bad">${IC.warn}<div>Margen por debajo del mínimo (${esc(Pp.margenMinimo)}%). Es una excepción que debe autorizar un socio.</div></div>` : ''}
+      ${dtoAlto ? `<div class="note warn">${IC.warn}<div>Descuento mayor al máximo (${esc(Pp.descuentoMax)}%). Requiere autorización.</div></div>` : ''}
+      ${falta.length ? `<div class="note info">${IC.info}<div>Falta: ${falta.join(', ')}.</div></div>` : ''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+      <button class="btn pri" ${(!d.cliente.nombre.trim() || !d.items.length || !S.params) ? 'disabled' : ''} onclick="saveDraft('pendiente')">${IC.check} ${S.editId ? 'Guardar versión y enviar a aprobación' : 'Guardar y enviar a aprobación'}</button>
+      ${!S.editId ? `<button class="btn" ${!d.cliente.nombre.trim() ? 'disabled' : ''} onclick="saveDraft('elaboracion')">Guardar como “En elaboración”</button>` : ''}
+    </div>
+    <p class="small muted" style="margin:10px 0 0">Fórmula: costo = materiales + mano de obra + desperdicio + gastos + adicionales. Precio = costo ÷ (1 − margen), redondeado a ${gs(Pp.redondeo||1)}.</p>`;
+}
+function setPath(obj, path, val){ const k = path.split('.'); let o = obj; for (let i = 0; i < k.length-1; i++) { if (o[k[i]] == null) o[k[i]] = {}; o = o[k[i]]; } o[k[k.length-1]] = val; }
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.b && S.draft && S.route === 'nuevo') {
+    const numeric = t.type === 'number';
+    setPath(S.draft, t.dataset.b, numeric ? (t.value === '' ? '' : pf(t.value)) : t.value);
+    renderSummary();
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'addProd' && t.value) { const pr = S.productos.find(x => x.id === t.value); if (pr) { S.draft.items.push(itemDesdeProducto(pr, 1)); render(); } }
+  if (t.dataset.mat) { const [i,j] = t.dataset.mat.split('.').map(Number); const m = matById(t.value); if (m) { Object.assign(S.draft.items[i].lineas[j], {materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0}); render(); } }
+});
+function addMedida(){ S.draft.items.push(itemMedida('', '', '', 1, '')); render(); }
+function recalcGeo(i){ const it = S.draft.items[i]; const {l,a,h} = it.dims||{}; if (!(l&&a&&h)) { toast('Completá largo, ancho y alto.'); return; } it.lineas = lineasGeo(l,a,h); it.medidas = `${l} × ${a} × ${h} cm`; it.geo = true; if (!it.lineas.length) toast('No hay materiales con rol asignado en el catálogo.'); render(); }
+function rmItem(i){ S.draft.items.splice(i,1); render(); }
+function addLinea(i){ S.draft.items[i].lineas.push({materialId:'', nombre:'', unidad:'', precio:0, cant:1}); render(); }
+function rmLinea(i,j){ S.draft.items[i].lineas.splice(j,1); render(); }
+function addAdic(n){ S.draft.adicionales.push({concepto:n, monto:''}); render(); }
+function rmAdic(i){ S.draft.adicionales.splice(i,1); render(); }
+function cancelEdit(){ const id = S.editId; S.editId = null; S.draft = null; newDraft(); go('presupuestos'); if (id) openDetail(id); }
+
+function buildVersion(d, n){
+  const c = calc(d.items, d.adicionales, P(), d.margen, d.descuento);
+  return {v:n, fecha:now(), por:S.me, items:clone(d.items).map(it => ({...it, lineas:(it.lineas||[]).filter(l => l.materialId)})), adicionales:clone(d.adicionales).filter(a => a.concepto || +a.monto),
+    margen:+d.margen||0, descuento:+d.descuento||0, notas:d.notas||'', params:paramSnap(P()), calc:{mat:c.mat, horas:c.horas, mo:c.mo, desp:c.desp, gastos:c.gastos, adic:c.adic, costo:c.costo, precioRed:c.precioRed, dto:c.dto, precio:c.precio, margenFinal:c.margenFinal, iva:c.iva}};
+}
+function resumenCampos(ver){ return {precioFinal: ver.calc.precio, costoEstimado: ver.calc.costo, margenFinal: ver.calc.margenFinal, productos:[...new Set(ver.items.map(i => i.codigo))], items: ver.items.map(i => ({codigo:i.codigo, cantidad:i.cantidad}))}; }
+
+let saving = false;
+async function saveDraft(estado, origen){
+  if (saving) return; saving = true;
+  try {
+    const d = S.draft;
+    if (S.editId) {
+      const p = S.presupuestos.find(x => x.id === S.editId); if (!p) throw new Error('no existe');
+      const ver = buildVersion(d, (p.versiones||[]).length + 1);
+      const doc = clone(p); delete doc.id;
+      doc.versiones = [...(p.versiones||[]), ver];
+      Object.assign(doc, resumenCampos(ver), {estado:'pendiente', aprobado:null, actualizado:now()});
+      doc.historial = [...(p.historial||[]), {fecha:now(), por:S.me, texto:`Nueva versión v${ver.v}${d.motivoCambio ? ' — ' + d.motivoCambio : ''}. Pasa a pendiente de aprobación.`}];
+      await put('presupuestos', p.id, doc);
+      toast(`${p.numero} v${ver.v} guardada`);
+      S.editId = null; S.draft = null; newDraft(); go('presupuestos'); openDetail(p.id);
+    } else {
+      const numero = await nextNumero();
+      const ver = buildVersion(d, 1);
+      const doc = {numero, cliente:clone(d.cliente), estado, aprobado:null, versiones:[ver], creado:now(), creadoPor:S.me, actualizado:now(), origen: origen || 'formulario',
+        historial:[{fecha:now(), por:S.me, texto: `Creado (${origen==='asistente'?'asistente WhatsApp':'formulario'}) · ${EST[estado].n}`}], ...resumenCampos(ver)};
+      await put('presupuestos', numero, doc);
+      toast(`${numero} creado`);
+      S.draft = null; newDraft();
+      if (origen !== 'asistente') { go('presupuestos'); openDetail(numero); }
+      return numero;
+    }
+  } catch(e) { console.error(e); } finally { saving = false; }
+}
+
+/* ============ DETALLE ============ */
+function openDetail(id){ S.detailId = id; S.detailV = null; renderLayer(); }
+function closeDetail(){ S.detailId = null; renderLayer(); }
+function renderLayer(){
+  const L = $('#layer');
+  if (!S.detailId) { L.innerHTML = ''; return; }
+  const p = S.presupuestos.find(x => x.id === S.detailId);
+  if (!p) { L.innerHTML = ''; return; }
+  const scroll = L.querySelector('.drawer')?.scrollTop || 0;
+  const vers = p.versiones || [];
+  const vi = S.detailV == null ? vers.length - 1 : S.detailV;
+  const ver = vers[vi];
+  const e = EST[p.estado] || EST.solicitud;
+  const isLast = vi === vers.length - 1;
+  const aprob = p.aprobado && p.aprobado.version === (vers.length);
+  const acts = [];
+  const abierto = ABIERTOS.includes(p.estado);
+  if (['solicitud','elaboracion'].includes(p.estado)) acts.push(`<button class="btn pri" onclick="editPres('${esc(p.id)}')">Completar cálculo</button>`);
+  if (p.estado === 'pendiente' && !aprob) acts.push(S.canAdmin ? `<button class="btn ok" onclick="aprobar()">${IC.check} Aprobar v${vers.length}</button>` : `<span class="note info" style="padding:7px 10px">${IC.info}<span>Esperando aprobación de un socio.</span></span>`);
+  if (p.estado === 'pendiente' && aprob) acts.push(`<button class="btn pri" onclick="setEstado('enviado')">${IC.send} Marcar como enviado</button>`);
+  if (p.estado === 'enviado') acts.push(`<button class="btn" onclick="setEstado('negociacion')">En negociación</button>`);
+  if (['enviado','negociacion'].includes(p.estado)) acts.push(`<button class="btn ok" onclick="confirmarVenta()">Venta confirmada</button>`);
+  if (['pendiente','enviado','negociacion'].includes(p.estado)) acts.push(`<button class="btn" onclick="editPres('${esc(p.id)}')">Nueva versión</button>`);
+  if (abierto) acts.push(`<button class="btn bad" onclick="marcarPerdido()">Perdido / cancelar</button>`);
+  if (p.estado === 'perdido' && S.canAdmin) acts.push(`<button class="btn" onclick="reabrir()">Reabrir</button>`);
+  const steps = ['solicitud','elaboracion','pendiente','enviado','negociacion','venta'];
+  const si = p.estado === 'perdido' ? -1 : steps.indexOf(p.estado);
+  const c = ver && ver.calc;
+  const tel = (p.cliente && p.cliente.telefono || '').replace(/\D/g, '');
+  const html = `<div class="ov" onclick="if(event.target===this)closeDetail()"><div class="drawer">
+    <div class="dr-h"><div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><div class="row" style="gap:10px"><h1>${esc(p.numero)}</h1>${estTag(p.estado, aprob)}</div>
+        <div class="muted" style="margin-top:4px">${esc(p.cliente&&p.cliente.nombre)}${p.cliente&&p.cliente.empresa ? ' · ' + esc(p.cliente.empresa) : ''}${tel ? ' · +' + esc(tel) : ''}</div></div>
+      <button class="x" style="font-size:26px" onclick="closeDetail()" aria-label="Cerrar">×</button></div>
+      <div class="steps">${steps.map((s,i) => `<i class="${p.estado==='perdido' ? 'lost' : i < si ? 'on' : i === si ? 'cur' : ''}" title="${esc(EST[s].n)}"></i>`).join('')}</div>
+      ${acts.length ? `<div class="row" style="margin-top:14px">${acts.join('')}</div>` : ''}
+    </div>
+    <div class="dr-b">
+      ${p.estado === 'perdido' ? `<div class="note bad">${IC.warn}<div><b>Perdido:</b> ${esc(p.motivoPerdida||'sin motivo')}${p.detallePerdida ? ' — ' + esc(p.detallePerdida) : ''}</div></div>` : ''}
+      ${p.estado === 'venta' ? `<div class="card pad"><div class="row" style="justify-content:space-between"><div><h3>Venta confirmada</h3><div class="small muted">${fDate(p.cerradoAt)} · Margen estimado ${pct(p.margenFinal)}</div></div>
+        <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Costo real ₲<input class="in r" style="width:150px" type="number" id="costoReal" value="${esc(p.costoReal||'')}"></label><button class="btn sm dark" onclick="guardarCostoReal()">Guardar</button></div></div>
+        ${+p.costoReal ? `<div style="margin-top:8px">Margen real: <b>${pct((p.precioFinal - p.costoReal)/p.precioFinal)}</b> (estimado ${pct(p.margenFinal)})</div>` : `<div class="small muted" style="margin-top:6px">Cargá el costo real cuando termine la fabricación para comparar margen estimado vs. real.</div>`}</div>` : ''}
+      ${ver ? `<div class="card pad">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px"><h3>Versión v${ver.v} <span class="muted small" style="font-family:var(--fb);font-weight:500">· ${fDT(ver.fecha)} · ${esc(nm(ver.por))}</span></h3>
+          ${vers.length > 1 ? `<div class="vtabs">${vers.map((x,i) => `<button class="${i===vi?'on':''}" onclick="S.detailV=${i};renderLayer()">v${x.v}</button>`).join('')}</div>` : ''}</div>
+        ${!isLast ? `<div class="note info" style="margin-bottom:10px">${IC.info}<div>Estás viendo una versión anterior. Se conserva sin cambios.</div></div>` : ''}
+        <table class="t"><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r hide-m">Horas/u</th><th class="r">Costo/u aprox.</th></tr></thead><tbody>
+          ${ver.items.map((it, i) => { const cc = calc(ver.items, [], ver.params, 0, 0); return `<tr><td><b>${esc(it.codigo)}</b> ${esc(it.nombre)}${it.medidas ? `<div class="small muted">${esc(it.medidas)}</div>` : ''}</td><td class="r num">${esc(it.cantidad)}</td><td class="r num hide-m">${fmtN(it.horas,2)}</td><td class="r num">${gs(cc.unit[i])}</td></tr>`; }).join('')}
+          ${ver.adicionales.map(a => `<tr><td colspan="3">${esc(a.concepto||'Adicional')}</td><td class="r num">${gs(a.monto)}</td></tr>`).join('')}
+        </tbody></table>
+        ${c && c.costo ? `<div class="grid2" style="margin-top:14px;gap:6px 20px;font-size:14px">
+          <div class="row" style="justify-content:space-between"><span class="muted">Materiales</span><span class="num">${gs(c.mat)}</span></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Mano de obra (${fmtN(c.horas,2)} h)</span><span class="num">${gs(c.mo)}</span></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Desperdicio</span><span class="num">${gs(c.desp)}</span></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Gastos de fábrica</span><span class="num">${gs(c.gastos)}</span></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Adicionales</span><span class="num">${gs(c.adic)}</span></div>
+          <div class="row" style="justify-content:space-between"><b>Costo total</b><b class="num">${gs(c.costo)}</b></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Margen ${fmtN(ver.margen,1)}%${ver.descuento ? ` · Dto. ${fmtN(ver.descuento,1)}%` : ''}</span><span class="num">Final ${pct(c.margenFinal)}</span></div>
+          <div class="row" style="justify-content:space-between;font-family:var(--fh);font-size:24px;font-weight:700"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>
+        </div>` : `<div class="note warn" style="margin-top:12px">${IC.warn}<div>Sin cálculo completo todavía.</div></div>`}
+        ${ver.notas ? `<p class="small" style="margin:12px 0 0"><b>Notas:</b> ${esc(ver.notas)}</p>` : ''}
+      </div>` : ''}
+      ${ver && c && c.precio ? `<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3>Texto para el cliente</h3>
+        <div class="row">${aprob || ['enviado','negociacion','venta'].includes(p.estado) ? '' : `<span class="small" style="color:var(--warn);font-weight:600">Borrador: aún no aprobado</span>`}
+        <button class="btn sm" onclick="copiarTexto()">${IC.copy} Copiar</button>
+        ${tel && (aprob || ['enviado','negociacion'].includes(p.estado)) ? `<a class="btn sm ok" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(textoCliente(p, ver))}">Abrir WhatsApp</a>` : ''}</div></div>
+        <pre id="txtCli" style="white-space:pre-wrap;font-family:var(--fb);font-size:13.5px;background:#f7f6f3;border-radius:8px;padding:12px;margin:0">${esc(textoCliente(p, ver))}</pre></div>` : ''}
+      <div class="card pad"><h3 style="margin-bottom:12px">Historial</h3><ul class="tl">${[...(p.historial||[])].reverse().map(h => `<li><time>${fDT(h.fecha)} · ${esc(nm(h.por))}</time>${esc(h.texto)}</li>`).join('')}</ul></div>
+    </div></div></div>`;
+  L.innerHTML = html;
+  const dr = L.querySelector('.drawer'); if (dr) dr.scrollTop = scroll;
+}
+function textoCliente(p, ver){
+  const pr = ver.params || {}, c = ver.calc;
+  const lin = ver.items.map(i => `• ${i.cantidad} × ${i.codigo === 'A medida' ? 'Case a medida' : i.codigo + ' – ' + i.nombre}${i.medidas ? ' (' + i.medidas + ')' : ''}`);
+  ver.adicionales.forEach(a => lin.push(`• ${a.concepto || 'Adicional'}`));
+  return [`*LFL HARDCASE — Presupuesto ${p.numero}${ver.v > 1 ? ' (v' + ver.v + ')' : ''}*`,
+    `Cliente: ${p.cliente.nombre}${p.cliente.empresa ? ' — ' + p.cliente.empresa : ''}`,
+    `Fecha: ${fDate(ver.fecha)} · Validez: ${pr.validezDias ?? '—'} días`, '', ...lin, '',
+    (+pr.ivaPct) ? `Subtotal: ${gs(c.precio)}\nIVA ${fmtN(pr.ivaPct,1)}%: ${gs(c.iva)}\n*Total: ${gs(c.precio + c.iva)}*` : `*Total: ${gs(c.precio)}*`,
+    `Anticipo: ${pr.anticipoPct ?? '—'}% · Entrega: ${pr.plazoEntrega || 'a confirmar'}`,
+    ver.notas ? `\nNotas: ${ver.notas}` : ''].join('\n').trim();
+}
+async function copiarTexto(){ const t = $('#txtCli').textContent; try { await navigator.clipboard.writeText(t); toast('Texto copiado'); } catch(e) { const r = document.createRange(); r.selectNodeContents($('#txtCli')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Seleccionado: copialo con Ctrl/Cmd + C'); } }
+
+async function patchPres(id, changes, texto){
+  const p = S.presupuestos.find(x => x.id === id); if (!p) return;
+  const doc = clone(p); delete doc.id;
+  Object.assign(doc, changes, {actualizado: now()});
+  if (texto) doc.historial = [...(p.historial||[]), {fecha:now(), por:S.me, texto}];
+  await put('presupuestos', id, doc);
+}
+async function aprobar(){
+  const p = S.presupuestos.find(x => x.id === S.detailId); if (!p || !S.canAdmin) return;
+  const v = p.versiones.length, ver = p.versiones[v-1], Pp = P();
+  const exc = [];
+  if (Pp.margenMinimo != null && ver.calc.margenFinal*100 < +Pp.margenMinimo) exc.push(`margen ${pct(ver.calc.margenFinal)} bajo el mínimo`);
+  if (Pp.descuentoMax != null && ver.descuento > +Pp.descuentoMax) exc.push(`descuento ${ver.descuento}% sobre el máximo`);
+  const ok = await dialog(`Aprobar ${p.numero} v${v}`, `Precio ${gs(ver.calc.precio)} · margen final ${pct(ver.calc.margenFinal)}.${exc.length ? '<div class="note bad" style="margin-top:10px">' + IC.warn + '<div><b>Excepción:</b> ' + exc.join('; ') + '. Al aprobar, la autorizás.</div></div>' : ''}<p class="small muted">Aprobar es la revisión interna; no es la venta.</p>`, 'Aprobar');
+  if (!ok) return;
+  await patchPres(p.id, {aprobado:{por:S.me, fecha:now(), version:v, excepcion: exc.join('; ') || null}}, `Aprobada v${v}${exc.length ? ' (excepción: ' + exc.join('; ') + ')' : ''}`);
+  toast('Aprobado');
+}
+async function setEstado(k){
+  const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return;
+  const ch = {estado:k};
+  if (k === 'enviado' && !p.enviadoAt) ch.enviadoAt = now();
+  await patchPres(p.id, ch, `Estado → ${EST[k].n}`);
+}
+async function confirmarVenta(){
+  const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return;
+  const ok = await dialog('Confirmar venta', `El cliente aceptó ${p.numero} por <b>${gs(p.precioFinal)}</b>. Se registra como venta.`, 'Confirmar venta');
+  if (!ok) return;
+  await patchPres(p.id, {estado:'venta', cerradoAt:now()}, `Venta confirmada por ${gs(p.precioFinal)}`);
+}
+async function marcarPerdido(){
+  const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return;
+  const mot = (P().motivosPerdida || DEMO_PARAMS.motivosPerdida);
+  const r = await dialog('Cerrar como perdido / cancelado', `<label class="f">Motivo *<select class="in" id="dMot"><option value="">Elegir…</option>${mot.map(m => `<option>${esc(m)}</option>`).join('')}</select></label><label class="f" style="margin-top:10px">Detalle<input class="in" id="dDet" placeholder="Opcional"></label>`, 'Cerrar caso', () => { const m = $('#dMot').value; if (!m) { toast('Elegí un motivo'); return false; } return {m, d: $('#dDet').value}; });
+  if (!r) return;
+  await patchPres(p.id, {estado:'perdido', motivoPerdida:r.m, detallePerdida:r.d, cerradoAt:now()}, `Perdido — ${r.m}${r.d ? ': ' + r.d : ''}`);
+}
+async function reabrir(){ const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return; await patchPres(p.id, {estado:'negociacion', motivoPerdida:null, detallePerdida:null, cerradoAt:null}, 'Reabierto → En negociación'); }
+async function guardarCostoReal(){ const v = pf($('#costoReal').value); const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return; await patchPres(p.id, {costoReal:v}, `Costo real registrado: ${gs(v)}`); toast('Costo real guardado'); }
+function editPres(id){
+  const p = S.presupuestos.find(x => x.id === id); if (!p) return;
+  const last = (p.versiones||[])[p.versiones.length-1] || {};
+  S.editId = id;
+  S.draft = {cliente:clone(p.cliente), items:clone(last.items||[]).map(i => ({...i, id:i.id||uid()})), adicionales:clone(last.adicionales||[]), margen:last.margen ?? P().margenObjetivo ?? 35, descuento:last.descuento||0, notas:last.notas||'', motivoCambio:''};
+  // precios de materiales actualizados al catálogo vigente
+  S.draft.items.forEach(it => (it.lineas||[]).forEach(l => { const m = matById(l.materialId); if (m) { l.precio = +m.precio||0; l.nombre = m.nombre; l.unidad = m.unidad; } }));
+  S.detailId = null; $('#view').dataset.sig = ''; go('nuevo');
+}
+function dialog(title, body, okTxt, collect){
+  return new Promise(res => {
+    const w = document.createElement('div'); w.className = 'dlg-ov';
+    w.innerHTML = `<div class="dlg"><h3>${esc(title)}</h3><div>${body}</div><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" data-c>Cancelar</button><button class="btn pri" data-o>${esc(okTxt)}</button></div></div>`;
+    document.body.appendChild(w);
+    w.querySelector('[data-c]').onclick = () => { w.remove(); res(false); };
+    w.querySelector('[data-o]').onclick = () => { const v = collect ? collect() : true; if (v === false) return; w.remove(); res(v); };
+  });
+}
+
+/* ============ CATÁLOGO ============ */
+function viewCatalogo(){
+  const ro = !S.canAdmin;
+  const tabs = [['param','Parámetros de costo'],['mat','Materiales'],['prod','Productos']];
+  let body = '';
+  if (S.catTab === 'param') body = viewParams(ro);
+  if (S.catTab === 'mat') body = viewMateriales(ro);
+  if (S.catTab === 'prod') body = viewProductos(ro);
+  return `<div class="top"><div><h1>Catálogo y costos</h1><p>La base de precios y reglas que usa el cálculo. Solo los socios pueden modificarla.</p></div></div>
+  ${ro ? `<div class="note info" style="margin-bottom:14px">${IC.info}<div>Estás en modo lectura. Para editar, un socio debe darte acceso de <b>Editor</b> al compartir la app.</div></div>` : ''}
+  <div class="seg" style="margin-bottom:16px">${tabs.map(([k,n]) => `<button class="${S.catTab===k?'on':''}" onclick="S.catTab='${k}';render()">${n}</button>`).join('')}</div>
+  ${loadingOr(body)}`;
+}
+function viewParams(ro){
+  const p = S.params || {};
+  const f = (k, label, help, type='number', step='1') => `<label class="f">${label}${help ? `<span class="h">${help}</span>` : ''}<input class="in ${type==='number'?'r':''}" type="${type}" step="${step}" id="pp-${k}" value="${esc(p[k] ?? '')}" ${ro?'disabled':''}></label>`;
+  const gh = (+p.horasProductivasMes) ? (+p.gastosMensuales||0)/(+p.horasProductivasMes) : 0;
+  return `<div class="card pad">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2>Parámetros ${p.ejemplo ? '<span class="ej">Ejemplo</span>' : ''}</h2>${S.params ? '' : '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">Sin cargar</span>'}</div>
+    ${p.ejemplo ? `<div class="note warn" style="margin-bottom:14px">${IC.warn}<div>Estos valores son <b>ficticios</b>, solo para probar. Reemplazalos por los reales (sección C y D del relevamiento). Al guardar se quita la marca de ejemplo.</div></div>` : ''}
+    <h3 style="margin:6px 0 10px">Mano de obra y gastos</h3>
+    <div class="grid3">${f('tarifaHora','Tarifa interna (₲/hora)','Costo de personal por hora')}${f('gastosMensuales','Gastos mensuales de fábrica (₲)','Energía, alquiler, mantenimiento…')}${f('horasProductivasMes','Horas productivas por mes','Para repartir los gastos')}</div>
+    <p class="small muted">Gasto de fábrica por hora resultante: <b>${gs(gh)}</b></p>
+    <div class="grid3">${f('desperdicioPct','Desperdicio (%)','Sobre materiales','number','0.5')}</div>
+    <h3 style="margin:18px 0 10px">Reglas comerciales</h3>
+    <div class="grid4">${f('margenObjetivo','Margen objetivo (%)','','number','0.5')}${f('margenMinimo','Margen mínimo (%)','Debajo = excepción','number','0.5')}${f('descuentoMax','Descuento máx. (%)','Sin autorización','number','0.5')}${f('redondeo','Redondear precio a (₲)','')}</div>
+    <div class="grid4" style="margin-top:12px">${f('validezDias','Validez (días)','')}${f('anticipoPct','Anticipo (%)','')}${f('plazoEntrega','Plazo de entrega','Texto para el cliente','text')}${f('seguimientoDias','Alerta seguimiento (días)','Sin movimiento')}</div>
+    <h3 style="margin:18px 0 10px">Impuestos</h3>
+    <div class="grid4">${f('ivaPct','IVA a sumar al precio (%)','0 = sin configurar','number','0.5')}</div>
+    <p class="small muted">Definir con el criterio del contador de LFL si los precios se expresan con o sin IVA y la tasa aplicable.</p>
+    <h3 style="margin:18px 0 10px">Motivos de pérdida</h3>
+    <label class="f">Uno por línea<textarea class="in" id="pp-motivos" ${ro?'disabled':''} style="min-height:120px">${esc((p.motivosPerdida||DEMO_PARAMS.motivosPerdida).join('\n'))}</textarea></label>
+    ${ro ? '' : `<div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn pri" onclick="saveParams()">${IC.check} Guardar parámetros</button></div>`}
+    ${S.mode==='mem' ? `<div class="row" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);justify-content:space-between"><span class="small muted">Prueba local: podés empezar de cero cuando quieras.</span><button class="btn sm bad" onclick="resetPrueba()">Borrar datos de prueba</button></div>` : ''}
+  </div>`;
+}
+async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; persist(); render(); toast('Datos borrados'); }
+async function saveParams(){
+  const keys = ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','margenObjetivo','margenMinimo','descuentoMax','redondeo','validezDias','anticipoPct','seguimientoDias','ivaPct'];
+  const d = {}; keys.forEach(k => { const v = $('#pp-'+k).value; d[k] = v === '' ? null : pf(v); });
+  d.plazoEntrega = $('#pp-plazoEntrega').value;
+  d.motivosPerdida = $('#pp-motivos').value.split('\n').map(s => s.trim()).filter(Boolean);
+  d.ejemplo = false; d.actualizado = now(); d.actualizadoPor = S.me;
+  if (+d.margenObjetivo >= 95 || +d.margenMinimo >= 95) { toast('El margen debe ser menor a 95%'); return; }
+  await put('config', 'params', d); toast('Parámetros guardados');
+}
+function viewMateriales(ro){
+  const L = S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+  return `<div class="card">
+    <div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Materiales e insumos</h2><p class="small muted" style="margin:2px 0 0">El <b>rol</b> permite estimar cantidades en trabajos a medida.</p></div>${ro ? '' : `<button class="btn pri sm" onclick="editMat()">+ Material</button>`}</div>
+    ${L.length ? `<table class="t"><thead><tr><th>Material</th><th class="hide-m">Rol</th><th>Unidad</th><th class="r">Precio</th><th class="hide-m">Proveedor</th>${ro?'':'<th></th>'}</tr></thead><tbody>
+    ${L.map(m => `<tr><td><b>${esc(m.nombre)}</b> ${m.ejemplo ? '<span class="ej">Ejemplo</span>' : ''}</td><td class="hide-m small">${esc(ROLN[m.rol]||'—')}</td><td>${esc(m.unidad)}</td><td class="r num">${gs(m.precio)}</td><td class="hide-m small muted">${esc(m.proveedor||'—')}</td>${ro?'':`<td class="r"><button class="btn sm ghost" onclick="editMat('${esc(m.id)}')">Editar</button></td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty"><b>Sin materiales</b>Cargá la lista de materiales con precio vigente.</div>`}
+  </div>`;
+}
+async function editMat(id){
+  window._matId = id || null;
+  const m = id ? S.materiales.find(x => x.id === id) : {nombre:'', rol:'otro', unidad:'unidad', precio:'', proveedor:''};
+  const r = await dialog(id ? 'Editar material' : 'Nuevo material', `<div style="display:flex;flex-direction:column;gap:10px">
+    <label class="f">Nombre *<input class="in" id="mN" value="${esc(m.nombre)}"></label>
+    <div class="grid2"><label class="f">Rol<select class="in" id="mR">${ROLES.map(r => `<option value="${r.k}" ${m.rol===r.k?'selected':''}>${r.n}</option>`).join('')}</select></label>
+    <label class="f">Unidad<input class="in" id="mU" value="${esc(m.unidad)}" placeholder="m², m, unidad, kit"></label></div>
+    <div class="grid2"><label class="f">Precio vigente (₲) *<input class="in r" type="number" id="mP" value="${esc(m.precio)}"></label>
+    <label class="f">Proveedor<input class="in" id="mV" value="${esc(m.proveedor||'')}"></label></div>
+    ${id ? `<button class="btn sm bad" style="align-self:flex-start" id="mDel">Eliminar material</button>` : ''}</div>`, 'Guardar', () => {
+      const n = $('#mN').value.trim(), pr = $('#mP').value; if (!n || pr === '') { toast('Nombre y precio son obligatorios'); return false; }
+      return {nombre:n, rol:$('#mR').value, unidad:$('#mU').value.trim() || 'unidad', precio:pf(pr), proveedor:$('#mV').value.trim(), ejemplo:false, actualizado:now()}; });
+  if (r) await put('materiales', id || 'm-' + uid(), r);
+}
+document.addEventListener('click', async e => {
+  if (e.target.id === 'mDel') { const w = e.target.closest('.dlg-ov'); const nm = $('#mN').value; w.remove(); const id = window._matId; if (id && await dialog('Eliminar material', `¿Eliminar “${esc(nm)}”? Los presupuestos ya guardados conservan su precio.`, 'Eliminar')) await del('materiales', id); }
+});
+function viewProductos(ro){
+  const Pp = P();
+  return `<div class="card">
+    <div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Productos</h2><p class="small muted" style="margin:2px 0 0">Cada producto tiene su lista de materiales y tiempo de fabricación.</p></div>${ro ? '' : `<button class="btn pri sm" onclick="editProd()">+ Producto</button>`}</div>
+    ${S.productos.length ? `<table class="t"><thead><tr><th>Código</th><th>Producto</th><th class="r hide-m">Horas</th><th class="r">Costo aprox.</th><th class="r">Precio sugerido</th>${ro?'':'<th></th>'}</tr></thead><tbody>
+    ${S.productos.map(p => { const it = itemDesdeProducto(p, 1); const c = calc([it], [], Pp, Pp.margenObjetivo, 0); return `<tr><td><b>${esc(p.codigo)}</b></td><td>${esc(p.nombre)}${p.medidas ? `<div class="small muted">${esc(p.medidas)}</div>` : ''}</td><td class="r num hide-m">${fmtN(p.horas||0,2)}</td><td class="r num">${gs(c.costo)}</td><td class="r num"><b>${gs(c.precio)}</b>${+p.precioActual ? `<div class="small muted">Actual ${gs(p.precioActual)}</div>` : ''}</td>${ro?'':`<td class="r"><button class="btn sm ghost" onclick="editProd('${esc(p.id)}')">Editar</button></td>`}</tr>`; }).join('')}</tbody></table>` :
+    `<div class="empty"><b>Catálogo sin productos</b>Pendiente: lista de productos con códigos, medidas, materiales y horas (sección A del relevamiento).</div>`}
+  </div>`;
+}
+let prodEdit = null;
+async function editProd(id){
+  const p = id ? clone(S.productos.find(x => x.id === id)) : {codigo:'', nombre:'', medidas:'', horas:'', precioActual:'', notas:'', bom:[]};
+  prodEdit = p;
+  const bomRows = () => (prodEdit.bom||[]).map((b, j) => `<tr><td><select class="in" data-pb="${j}" data-k="materialId"><option value="">Elegir…</option>${S.materiales.map(m => `<option value="${esc(m.id)}" ${b.materialId===m.id?'selected':''}>${esc(m.nombre)} (${esc(m.unidad)})</option>`).join('')}</select></td><td style="width:90px"><input class="in r" type="number" step="0.01" data-pb="${j}" data-k="cant" value="${esc(b.cant)}"></td><td style="width:30px"><button class="x" data-pbx="${j}">×</button></td></tr>`).join('');
+  const r = await dialog(id ? 'Editar producto' : 'Nuevo producto', `<div style="display:flex;flex-direction:column;gap:10px;max-height:65vh;overflow:auto">
+    <div class="grid2"><label class="f">Código *<input class="in" id="pC" value="${esc(p.codigo)}" placeholder="GC1"></label><label class="f">Horas de fabricación *<input class="in r" type="number" step="0.25" id="pH" value="${esc(p.horas)}"></label></div>
+    <label class="f">Nombre *<input class="in" id="pN" value="${esc(p.nombre)}"></label>
+    <div class="grid2"><label class="f">Medidas estándar<input class="in" id="pM" value="${esc(p.medidas)}" placeholder="L × A × H cm"></label><label class="f">Precio actual (₲)<span class="h">Opcional, para comparar</span><input class="in r" type="number" id="pPA" value="${esc(p.precioActual||'')}"></label></div>
+    <div><b class="small">Materiales por unidad</b><table class="lines"><tbody id="pBom">${bomRows()}</tbody></table><button class="btn sm ghost" id="pAddB">+ Material</button></div>
+    <label class="f">Notas<input class="in" id="pNo" value="${esc(p.notas||'')}"></label>
+    ${id ? `<button class="btn sm bad" style="align-self:flex-start" id="pDel">Eliminar producto</button>` : ''}</div>`, 'Guardar', () => {
+      const cod = $('#pC').value.trim(), n = $('#pN').value.trim(); if (!cod || !n) { toast('Código y nombre son obligatorios'); return false; }
+      return {codigo:cod.toUpperCase(), nombre:n, medidas:$('#pM').value.trim(), horas:pf($('#pH').value), precioActual:pf($('#pPA').value)||null, notas:$('#pNo').value.trim(), bom:(prodEdit.bom||[]).filter(b => b.materialId && +b.cant > 0), actualizado:now()}; });
+  if (r === 'deleted') return;
+  if (r) await put('productos', id || 'p-' + uid(), r);
+  prodEdit = null;
+}
+document.addEventListener('click', async e => {
+  const t = e.target;
+  if (t.id === 'pAddB' && prodEdit) { prodEdit.bom.push({materialId:'', cant:1}); refreshBom(); }
+  if (t.dataset && t.dataset.pbx != null && prodEdit) { prodEdit.bom.splice(+t.dataset.pbx, 1); refreshBom(); }
+  if (t.id === 'pDel' && prodEdit) { const id = prodEdit.id; t.closest('.dlg-ov').remove(); if (await dialog('Eliminar producto', `¿Eliminar ${esc(prodEdit.codigo)}? Los presupuestos guardados no cambian.`, 'Eliminar')) await del('productos', id); prodEdit = null; }
+});
+document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.pb != null && prodEdit) { const b = prodEdit.bom[+t.dataset.pb]; b[t.dataset.k] = t.dataset.k === 'cant' ? pf(t.value) : t.value; } });
+document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.pb != null && prodEdit) { const b = prodEdit.bom[+t.dataset.pb]; b[t.dataset.k] = t.dataset.k === 'cant' ? pf(t.value) : t.value; } });
+function refreshBom(){ const tb = $('#pBom'); if (!tb) return; tb.innerHTML = (prodEdit.bom||[]).map((b, j) => `<tr><td><select class="in" data-pb="${j}" data-k="materialId"><option value="">Elegir…</option>${S.materiales.map(m => `<option value="${esc(m.id)}" ${b.materialId===m.id?'selected':''}>${esc(m.nombre)} (${esc(m.unidad)})</option>`).join('')}</select></td><td style="width:90px"><input class="in r" type="number" step="0.01" data-pb="${j}" data-k="cant" value="${esc(b.cant)}"></td><td style="width:30px"><button class="x" data-pbx="${j}">×</button></td></tr>`).join(''); }
+
+/* ============ ASISTENTE (simulación WhatsApp) ============ */
+const CH = {msgs:[], step:'inicio', ctx:{}, chips:[], booted:false};
+function viewChat(){
+  return `<div class="top"><div><h1>Asistente WhatsApp</h1><p>Simulación del flujo de la Etapa 4: el equipo pide un presupuesto y el asistente lo prepara para aprobación.</p></div></div>
+  <div class="chatwrap">
+    <div class="phone"><div class="ph-h"><div class="av">LFL</div><div><b>Asistente LFL</b><small>en línea · simulación</small></div></div>
+      <div class="chat" id="chat"></div>
+      <form class="ph-in" onsubmit="event.preventDefault();chatSend()"><input id="chatIn" placeholder="Escribí un mensaje" autocomplete="off"><button aria-label="Enviar">${IC.send}</button></form></div>
+    <div class="card pad"><h2 style="margin-bottom:8px">Cómo funcionará en producción</h2>
+      <ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px">
+        <li>El comercial escribe al número de WhatsApp de LFL (API de WhatsApp Business).</li>
+        <li>El asistente pide los datos que faltan y consulta esta misma base de costos.</li>
+        <li>El presupuesto queda <b>pendiente de aprobación</b>; un socio lo revisa aquí.</li>
+        <li>Aprobado, se envía al cliente y el caso sigue en el tablero.</li></ol>
+      <div class="note info" style="margin-top:14px">${IC.info}<div>Lo que crees acá aparece en Presupuestos. Conectar el WhatsApp real requiere la cuenta de WhatsApp Business API y un integrador (por ejemplo n8n), que es la siguiente etapa.</div></div>
+      <div class="row" style="margin-top:14px"><button class="btn sm" onclick="chatReset()">Reiniciar conversación</button></div></div>
+  </div>`;
+}
+function chatBoot(){ if (!CH.booted) { CH.booted = true; chatInicio(); } else drawChat(); }
+function chatReset(){ CH.msgs = []; CH.ctx = {}; chatInicio(); }
+function bot(t, html){ CH.msgs.push({who:'bot', t, html, at:hhmm()}); }
+function me(t){ CH.msgs.push({who:'me', t, at:hhmm()}); }
+function chips(arr){ CH.chips = arr; }
+function drawChat(){
+  const el = $('#chat'); if (!el) return;
+  el.innerHTML = CH.msgs.map(m => `<div class="msg ${m.who}">${m.html ? m.html : esc(m.t)}<time>${m.at}</time></div>`).join('') +
+    (CH.chips.length ? `<div class="chips">${CH.chips.map((c, i) => `<button onclick="chatChip(${i})">${esc(c.l)}</button>`).join('')}</div>` : '');
+  el.scrollTop = el.scrollHeight;
+}
+function chatInicio(){
+  CH.step = 'inicio'; CH.ctx = {};
+  bot('¡Hola! Soy el asistente de presupuestos de LFL Hardcase. ¿Qué necesitás?');
+  chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}, {l:'Ver pendientes', v:'pendientes'}]);
+  drawChat();
+}
+function chatChip(i){ const c = CH.chips[i]; if (!c) return; me(c.l); CH.chips = []; chatStep(c.v, c.l); }
+function chatSend(){ const i = $('#chatIn'); const t = i.value.trim(); if (!t) return; i.value = ''; me(t); CH.chips = []; chatStep(null, t); }
+async function chatStep(v, t){
+  const c = CH.ctx, s = CH.step, Pp = P();
+  const ask = (step, msg, ch) => { CH.step = step; bot(msg); chips(ch || []); };
+  const m = String(t||'').match(/LFL-?\s*(\d+)/i);
+  if (s === 'inicio' && !v && m) v = 'consultar';
+  if (s === 'inicio') {
+    if (v === 'nuevo' || /nuevo|presupuest|cotiz/i.test(t) && v !== 'consultar' && v !== 'pendientes') {
+      if (!S.params) { bot('Todavía no hay parámetros de costo cargados en el sistema. Pedile a un socio que los complete en Catálogo y costos.'); chips([{l:'Volver al inicio', v:'reset'}]); CH.step='fin'; }
+      else ask('cliente', 'Perfecto. ¿Cuál es el nombre del cliente?');
+    } else if (v === 'consultar') {
+      if (m) return consultar(m[1]);
+      ask('consulta', 'Pasame el número del presupuesto (ej. LFL-003).');
+    } else if (v === 'pendientes') {
+      const pend = S.presupuestos.filter(p => ABIERTOS.includes(p.estado));
+      if (!pend.length) bot('No hay presupuestos abiertos. 🎉');
+      else bot(pend.slice(0, 8).map(p => `${p.numero} · ${p.cliente.nombre} · ${EST[p.estado].n}${p.precioFinal ? ' · ' + gs(p.precioFinal) : ''}`).join('\n') + (pend.length > 8 ? `\n…y ${pend.length - 8} más` : ''));
+      chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}]);
+    } else { bot('Puedo ayudarte a crear un presupuesto nuevo o consultar uno existente.'); chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}, {l:'Ver pendientes', v:'pendientes'}]); }
+    return drawChat();
+  }
+  if (v === 'reset') { chatInicio(); return; }
+  if (s === 'consulta') { if (m || /^\d+$/.test(t)) return consultar((m && m[1]) || t); ask('consulta', 'No reconocí el número. Escribilo como LFL-003.'); return drawChat(); }
+  if (s === 'cliente') { if (t.length < 2) { ask('cliente', '¿Nombre del cliente?'); return drawChat(); } c.cliente = {nombre:t, telefono:'', empresa:'', email:''}; ask('tel', `¿Número de WhatsApp de ${t}? Con código de país (ej. 595981…).`, [{l:'Omitir', v:'omitir'}]); return drawChat(); }
+  if (s === 'tel') { if (v !== 'omitir') c.cliente.telefono = t.replace(/[^\d+]/g, ''); c.items = []; c.adicionales = []; return askProducto(); }
+  if (s === 'producto') {
+    if (v === 'medida' || /medida/i.test(t||'')) { c.cur = {tipo:'medida'}; ask('dims', 'Indicame las medidas interiores en cm: largo × ancho × alto (ej. 110x40x15).'); return drawChat(); }
+    const pr = S.productos.find(p => p.id === v) || S.productos.find(p => String(p.codigo).toLowerCase() === String(t).trim().toLowerCase());
+    if (!pr) { ask('producto', 'No encontré ese producto. Elegí uno de la lista o “A medida”.', prodChips()); return drawChat(); }
+    c.cur = {tipo:'producto', prod:pr};
+    if (!(+pr.horas)) { ask('horas', `${pr.codigo} no tiene tiempo de fabricación cargado. ¿Cuántas horas estimás por unidad?`); return drawChat(); }
+    ask('cant', `${pr.codigo} – ${pr.nombre}. ¿Cuántas unidades?`, [{l:'1',v:'1'},{l:'2',v:'2'},{l:'5',v:'5'},{l:'10',v:'10'}]); return drawChat();
+  }
+  if (s === 'dims') {
+    const n = String(t).replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/);
+    if (!n) { ask('dims', 'No pude leer las medidas. Escribilas así: 110x40x15'); return drawChat(); }
+    c.cur.dims = {l:+n[1], a:+n[2], h:+n[3]};
+    if (!S.materiales.some(m => ['placa','perfil'].includes(m.rol))) bot('⚠️ El catálogo no tiene materiales con rol placa/perfil; la estimación de materiales va a quedar incompleta.');
+    ask('horas', `Medidas ${n[1]} × ${n[2]} × ${n[3]} cm. ¿Cuántas horas de fabricación estimás por unidad?`); return drawChat();
+  }
+  if (s === 'horas') { const h = pf(t); if (!(h > 0)) { ask('horas', 'Necesito un número de horas mayor a 0 (ej. 6 o 7,5).'); return drawChat(); } c.cur.horas = h; ask('cant', '¿Cuántas unidades?', [{l:'1',v:'1'},{l:'2',v:'2'},{l:'5',v:'5'},{l:'10',v:'10'}]); return drawChat(); }
+  if (s === 'cant') {
+    const q = parseInt(v || t, 10); if (!(q > 0)) { ask('cant', 'Indicame una cantidad válida (número entero).'); return drawChat(); }
+    let it;
+    if (c.cur.tipo === 'producto') { it = itemDesdeProducto(c.cur.prod, q); if (c.cur.horas) it.horas = c.cur.horas; }
+    else { const {l,a,h} = c.cur.dims; it = itemMedida(l, a, h, q, c.cur.horas); }
+    c.items.push(it); c.cur = null;
+    ask('otroProd', `Agregado: ${q} × ${it.codigo === 'A medida' ? 'case a medida ' + it.medidas : it.codigo}. ¿Agregás otro producto?`, [{l:'Sí, otro producto', v:'si'}, {l:'No, seguir', v:'no'}]); return drawChat();
+  }
+  if (s === 'otroProd') { if (v === 'si' || /^s/i.test(t)) return askProducto(); return askAdic(); }
+  if (s === 'adic') {
+    if (v === 'no' || /^no/i.test(t)) return askMargen();
+    c.adicCur = v || t; ask('adicMonto', `¿Monto de ${c.adicCur.toLowerCase()} en guaraníes?`); return drawChat();
+  }
+  if (s === 'adicMonto') { const n = pf(String(t).replace(/\./g, '').replace(/[^\d,]/g, '')); if (!(n >= 0) || t.trim() === '') { ask('adicMonto', 'Escribí solo el monto, ej. 150000'); return drawChat(); } c.adicionales.push({concepto:c.adicCur, monto:n}); return askAdic(true); }
+  if (s === 'margen') {
+    let mg = v === 'obj' ? +Pp.margenObjetivo : pf(String(t).replace('%', ''));
+    if (!(mg >= 0 && mg < 95)) { ask('margen', 'Indicame el margen en %, entre 0 y 94.'); return drawChat(); }
+    c.margen = mg; return resumen();
+  }
+  if (s === 'confirmar') {
+    if (v === 'crear') {
+      S.draft = {cliente:c.cliente, items:c.items, adicionales:c.adicionales, margen:c.margen, descuento:0, notas:'', motivoCambio:''}; S.editId = null;
+      bot('Guardando…'); drawChat();
+      const num = await saveDraft('pendiente', 'asistente');
+      CH.msgs.pop();
+      if (num) bot(`✅ Listo: ${num} quedó pendiente de aprobación.\nUn socio debe revisarlo antes de enviarlo al cliente. Podés consultar su estado escribiendo el número.`);
+      else bot('No pude guardar el presupuesto. Revisá tu acceso o intentá de nuevo.');
+      CH.step = 'inicio'; chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}]); return drawChat();
+    }
+    if (v === 'editar') { S.draft = {cliente:c.cliente, items:c.items, adicionales:c.adicionales, margen:c.margen, descuento:0, notas:'', motivoCambio:''}; S.editId = null; $('#view').dataset.sig=''; go('nuevo'); return; }
+    if (v === 'cancelar') { bot('Cancelado. No se guardó nada.'); chatInicio(); return; }
+  }
+  bot('No entendí. Usá las opciones o escribí “nuevo”.'); chips([{l:'Volver al inicio', v:'reset'}]); CH.step = 'fin'; drawChat();
+}
+function prodChips(){ return [...S.productos.slice(0, 12).map(p => ({l:p.codigo + ' – ' + p.nombre, v:p.id})), {l:'A medida', v:'medida'}]; }
+function askProducto(){
+  CH.step = 'producto';
+  bot(S.productos.length ? '¿Qué producto?' : 'El catálogo todavía no tiene productos cargados, así que lo cotizamos a medida.');
+  chips(prodChips()); drawChat();
+}
+function askAdic(again){ CH.step = 'adic'; const ya = CH.ctx.adicionales.map(a => a.concepto); bot(again ? '¿Algún otro adicional?' : '¿Lleva adicionales?'); chips([...['Embalaje','Transporte','Instalación'].filter(x => !ya.includes(x)).map(x => ({l:x, v:x})), {l:'No, continuar', v:'no'}]); drawChat(); }
+function askMargen(){ CH.step = 'margen'; const Pp = P(); bot(`¿Qué margen aplico? El objetivo vigente es ${fmtN(Pp.margenObjetivo,1)}% (mínimo ${fmtN(Pp.margenMinimo,1)}%).`); chips([{l:`Usar ${fmtN(Pp.margenObjetivo,1)}%`, v:'obj'}]); drawChat(); }
+function resumen(){
+  const c = CH.ctx, Pp = P(), k = calc(c.items, c.adicionales, Pp, c.margen, 0);
+  const geo = c.items.some(i => i.geo);
+  const row = (a, b, bold) => `<div${bold ? ' style="font-weight:700"' : ''}><span>${a}</span><span>${b}</span></div>`;
+  bot('', `<b>Presupuesto para ${esc(c.cliente.nombre)}</b>\n${c.items.map(i => `• ${i.cantidad} × ${esc(i.codigo === 'A medida' ? 'A medida ' + i.medidas : i.codigo + ' – ' + i.nombre)}`).join('\n')}${c.adicionales.map(a => `\n• ${esc(a.concepto)}`).join('')}
+<div class="calc" style="margin-top:6px;border-top:1px solid #e3e3e3;padding-top:6px">${row('Materiales', gs(k.mat))}${row('Mano de obra', gs(k.mo))}${row('Desperdicio', gs(k.desp))}${row('Gastos fábrica', gs(k.gastos))}${row('Adicionales', gs(k.adic))}${row('Costo total', gs(k.costo), 1)}${row('Margen ' + fmtN(c.margen,1) + '%', '')}<div style="font-size:17px;font-weight:700;margin-top:4px"><span>Precio</span><span>${gs(k.precio)}</span></div></div>${k.margenFinal*100 < +Pp.margenMinimo ? '\n⚠️ Margen bajo el mínimo: requiere autorización.' : ''}${geo ? '\n⚠️ Materiales a medida estimados por geometría: revisar.' : ''}${Pp.ejemplo ? '\n⚠️ Costos de EJEMPLO, no reales.' : ''}`);
+  CH.step = 'confirmar';
+  chips([{l:'Crear presupuesto', v:'crear'}, {l:'Revisar en calculadora', v:'editar'}, {l:'Cancelar', v:'cancelar'}]);
+  drawChat();
+}
+function consultar(n){
+  const num = 'LFL-' + String(parseInt(n,10)).padStart(3, '0');
+  const p = S.presupuestos.find(x => x.numero === num);
+  if (!p) bot(`No encontré ${num}.`);
+  else bot(`${p.numero} · ${p.cliente.nombre}\nEstado: ${p.estado === 'pendiente' && p.aprobado ? 'Aprobado, listo para enviar' : EST[p.estado].n}\nImporte: ${p.precioFinal ? gs(p.precioFinal) : 'sin calcular'}\nVersión: v${(p.versiones||[]).length}\nÚltimo movimiento: ${fDT(p.actualizado)}`);
+  CH.step = 'inicio'; chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar otro', v:'consultar'}, {l:'Ver pendientes', v:'pendientes'}]); drawChat();
+}
+
+/* ============ arranque ============ */
+(function(){ const h = location.hash.slice(1); S.route = ROUTES.some(r => r.k === h) ? h : 'tablero'; })();
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.detailId && !$('.dlg-ov')) closeDetail(); });
+init();
+</script>
+</body>
+</html>
