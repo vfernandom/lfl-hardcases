@@ -2,6 +2,10 @@
 
 Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-Facturo pueden variar un poco; si algo no coincide, buscá la opción más parecida.
 
+> **Modo de facturación.** La app tiene dos modos (Catálogo → Parámetros → *Cómo se emite la factura*):
+> - **Manual en e-Kuatia'i** (por defecto, el que usa LFL hoy): la app arma los datos para copiar, la factura se emite en la web de la DNIT y después se registra el número en la app. **No necesita la Parte A5 ni la Parte B.**
+> - **Automática (e-Kuatia vía Yo-Facturo)**: la app emite sola. Requiere estar habilitado en **e-Kuatia** con certificado de un prestador cualificado (el CCFE gratuito de e-Kuatia'i no sirve). Ahí sí hacen falta A5 y B.
+
 **Qué se usa**
 - `sistema.html` → la app (se publica sola en GitHub Pages).
 - `supabase/01_base.sql` → base de datos, usuarios y permisos.
@@ -32,7 +36,7 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
    - Primero **vos** (email + contraseña, marcá *Auto Confirm User*). El primer usuario queda como **socio**.
    - Después los demás. Entran como **comercial**; los pasás a socio desde la app (*Catálogo → Usuarios*).
 
-5. **Crear la función de facturación**
+5. **Crear la función de facturación** *(solo modo automático)*
    - **Edge Functions** → *Deploy a new function* → *Via Editor*.
    - Nombre: **`sifen`** (exacto, en minúscula).
    - Borrá el ejemplo, abrí [index.ts](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/functions/sifen/index.ts), copiá todo y pegalo → **Deploy**.
@@ -42,7 +46,7 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
    - **Project Settings** → **API** (o *Data API*): copiá **Project URL** y la clave **anon / public**.
    - Mandámelas: son públicas por diseño. Las cargo en `sistema.html`.
 
-## Parte B · Yo-Facturo (conexión con SIFEN)
+## Parte B · Yo-Facturo (solo modo automático, requiere e-Kuatia)
 
 1. Creá la cuenta en yo-facturo.com (tiene prueba de 15 días).
 2. Cargá los **datos fiscales de LFL**: RUC y DV, timbrado electrónico con sus fechas, establecimiento, punto de expedición, dirección y ciudad. Dejá el ambiente en **prueba (test)**.
@@ -58,8 +62,9 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
 1. Entrá a **https://vfernandom.github.io/lfl-hardcases/sistema.html** con tu usuario.
 2. **Catálogo → Parámetros**: completá **establecimiento** y **punto de expedición** (los mismos del timbrado), el IVA general y los costos reales → *Guardar*.
 3. Creá un presupuesto con el **RUC** del cliente (sección “Datos para la factura”) → aprobalo → *Marcar como enviado* → *Venta confirmada*.
-4. En el presupuesto tocá **Facturar** → revisá renglones e IVA → **Emitir factura**.
-5. Tiene que aparecer **“Prueba · sin valor fiscal”** y, en unos segundos, **Aprobada por SIFEN**. Probá también *Ver factura (KuDE)* y *Anular*.
+4. **Modo manual (e-Kuatia'i):** en el presupuesto tocá **Preparar factura** → revisá renglones e IVA → **Copiar datos** → **Abrir e-Kuatia'i** y emití la factura ahí → volvé y tocá **Ya la emití: registrar N°** con el número (001-001-0000123), la fecha y, si querés, el CDC.
+5. **Modo automático:** tocá **Facturar** → **Emitir factura**. Tiene que aparecer **“Prueba · sin valor fiscal”** y, en unos segundos, **Aprobada por SIFEN**.
+6. Las ventas sin factura aparecen en el **Tablero → Casos que necesitan seguimiento**.
 
 ## Pasar a producción
 

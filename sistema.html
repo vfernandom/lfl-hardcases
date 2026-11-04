@@ -518,7 +518,7 @@ function viewTablero(){
   const motivos = {}; perd.forEach(p => { const k = p.motivoPerdida || 'Sin motivo'; motivos[k] = (motivos[k]||0) + 1; });
   const mot = Object.entries(motivos).sort((a,b)=>b[1]-a[1]); const maxM = Math.max(1, ...mot.map(x=>x[1]));
   const segD = +(P().seguimientoDias || 7);
-  const pend = S.presupuestos.filter(p => p.estado === 'pendiente' || p.estado === 'solicitud' || p.estado === 'elaboracion' || (['enviado','negociacion'].includes(p.estado) && (Date.now() - new Date(p.actualizado||p.creado)) > segD*864e5));
+  const pend = S.presupuestos.filter(p => (p.estado === 'venta' && !tieneFacturaActiva(p)) || p.estado === 'pendiente' || p.estado === 'solicitud' || p.estado === 'elaboracion' || (['enviado','negociacion'].includes(p.estado) && (Date.now() - new Date(p.actualizado||p.creado)) > segD*864e5));
   const comerciales = [...new Set(S.presupuestos.map(p => p.creadoPor).filter(Boolean))];
 
   return `
@@ -546,8 +546,8 @@ function viewTablero(){
     <div class="card pad"><h3 style="margin-bottom:14px">Presupuestos por estado</h3>
       <div class="bars">${byEst.map(b => `<div class="bar" title="${esc(b.n)}: ${b.v}"><span>${esc(b.n)}</span><div class="tr"><div class="fl ${b.k==='venta'?'acc':''}" style="width:${b.v/maxE*100}%"></div></div><span class="v">${b.v}</span></div>`).join('')}</div>
     </div>
-    <div class="card pad"><h3 style="margin-bottom:4px">Casos que necesitan seguimiento</h3><p class="small muted" style="margin:0 0 10px">Sin aprobar, sin calcular, o enviados sin movimiento hace más de ${segD} días.</p>
-      ${pend.length ? `<table class="t"><tbody>${pend.slice(0,8).map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td><b>${esc(p.numero)}</b><div class="small muted">${esc(p.cliente&&p.cliente.nombre)}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty"><b>Todo al día</b>No hay casos pendientes.</div>`}
+    <div class="card pad"><h3 style="margin-bottom:4px">Casos que necesitan seguimiento</h3><p class="small muted" style="margin:0 0 10px">Ventas sin facturar, sin aprobar, sin calcular, o enviados sin movimiento hace más de ${segD} días.</p>
+      ${pend.length ? `<table class="t"><tbody>${pend.slice(0,8).map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td><b>${esc(p.numero)}</b><div class="small muted">${esc(p.cliente&&p.cliente.nombre)}</div></td><td>${p.estado === 'venta' ? `<span class="tag" style="background:var(--warn-soft);color:#9a6212"><span class="dot"></span>Venta sin facturar</span>` : estTag(p.estado, p.aprobado)}</td><td class="r small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty"><b>Todo al día</b>No hay casos pendientes.</div>`}
     </div>
     <div class="card pad"><h3 style="margin-bottom:4px">Productos cotizados</h3><p class="small muted" style="margin:0 0 12px">Unidades cotizadas · <b style="color:var(--ink)">vendidas</b> a la derecha</p>
       ${prods.length ? `<div class="bars">${prods.map(([k,x]) => `<div class="bar" title="${esc(k)}: ${x.c} cotizadas, ${x.v} vendidas"><span>${esc(k)}</span><div class="tr"><div class="fl" style="width:${x.c/maxP*100}%"></div></div><span class="v">${x.c} · <b>${x.v}</b></span></div>`).join('')}</div>` : `<div class="empty">Sin datos en el período.</div>`}
@@ -813,7 +813,7 @@ function renderLayer(){
       ${p.estado === 'venta' ? `<div class="card pad"><div class="row" style="justify-content:space-between"><div><h3>Venta confirmada</h3><div class="small muted">${fDate(p.cerradoAt)} · Margen estimado ${pct(p.margenFinal)}</div></div>
         <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Costo real ₲<input class="in r" style="width:150px" type="number" id="costoReal" value="${esc(p.costoReal||'')}"></label><button class="btn sm dark" onclick="guardarCostoReal()">Guardar</button></div></div>
         ${+p.costoReal ? `<div style="margin-top:8px">Margen real: <b>${pct((p.precioFinal - p.costoReal)/p.precioFinal)}</b> (estimado ${pct(p.margenFinal)})</div>` : `<div class="small muted" style="margin-top:6px">Cargá el costo real cuando termine la fabricación para comparar margen estimado vs. real.</div>`}</div>` : ''}
-      ${p.estado === 'venta' || (p.factura && p.factura.cdc) ? viewFacturaCard(p) : ''}
+      ${p.estado === 'venta' || (p.factura && (p.factura.cdc || p.factura.manual)) || (p.facturasManual||[]).length ? viewFacturaCard(p) : ''}
       ${ver ? `<div class="card pad">
         <div class="row" style="justify-content:space-between;margin-bottom:10px"><h3>Versión v${ver.v} <span class="muted small" style="font-family:var(--fb);font-weight:500">· ${fDT(ver.fecha)} · ${esc(nm(ver.por))}</span></h3>
           ${vers.length > 1 ? `<div class="vtabs">${vers.map((x,i) => `<button class="${i===vi?'on':''}" onclick="S.detailV=${i};renderLayer()">v${x.v}</button>`).join('')}</div>` : ''}</div>
@@ -946,7 +946,8 @@ function viewParams(ro){
     <h3 style="margin:18px 0 10px">Impuestos</h3>
     <div class="grid4">${f('ivaPct','IVA a sumar al precio (%)','0 = sin configurar','number','0.5')}</div>
     <p class="small muted">Definir con el criterio del contador de LFL si los precios se expresan con o sin IVA y la tasa aplicable.</p>
-    <h3 style="margin:18px 0 10px">Facturación electrónica (SIFEN)</h3>
+    <h3 style="margin:18px 0 10px">Facturación electrónica</h3>
+    <div class="grid2" style="margin-bottom:12px"><label class="f">Cómo se emite la factura<span class="h">e-Kuatia'i: se emite a mano en la web de la DNIT. Automática: requiere estar habilitado en e-Kuatia con certificado de un prestador.</span><select class="in" id="pp-modoFactura" ${ro?'disabled':''}><option value="manual" ${(p.modoFactura||'manual')!=='sifen'?'selected':''}>Manual en e-Kuatia'i</option><option value="sifen" ${p.modoFactura==='sifen'?'selected':''}>Automática (e-Kuatia vía Yo-Facturo)</option></select></label></div>
     <div class="grid4">${f('establecimiento','Establecimiento','Ej. 001 (según timbrado)','text')}${f('puntoExpedicion','Punto de expedición','Ej. 001','text')}
       <label class="f">IVA general de los productos<span class="h">Se puede cambiar por producto</span><select class="in" id="pp-ivaDefecto" ${ro?'disabled':''}>${[['10','10%'],['5','5%'],['0','Exento']].map(([k,n]) => `<option value="${k}" ${String(p.ivaDefecto ?? 10)===k?'selected':''}>${n}</option>`).join('')}</select></label></div>
     <p class="small muted">Deben coincidir con los habilitados para LFL en el timbrado electrónico. Verificar con el contador.</p>
@@ -961,6 +962,7 @@ async function saveParams(){
   const keys = ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','margenObjetivo','margenMinimo','descuentoMax','redondeo','validezDias','anticipoPct','seguimientoDias','ivaPct'];
   const d = {}; keys.forEach(k => { const v = $('#pp-'+k).value; d[k] = v === '' ? null : pf(v); });
   d.plazoEntrega = $('#pp-plazoEntrega').value;
+  d.modoFactura = $('#pp-modoFactura').value;
   d.establecimiento = $('#pp-establecimiento').value.trim(); d.puntoExpedicion = $('#pp-puntoExpedicion').value.trim(); d.ivaDefecto = +$('#pp-ivaDefecto').value;
   if ((d.establecimiento && !/^\d{1,3}$/.test(d.establecimiento)) || (d.puntoExpedicion && !/^\d{1,3}$/.test(d.puntoExpedicion))) { toast('Establecimiento y punto de expedición: solo números, hasta 3 dígitos'); return; }
   d.motivosPerdida = $('#pp-motivos').value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -1291,6 +1293,7 @@ const fTag = e => { const x = FEST[e] || {n:e, c:'#55534f', bg:'var(--neutral-so
 const facturasDe = pid => S.facturas.filter(f => f.presupuesto_id === pid).sort((a,b) => String(a.created_at).localeCompare(String(b.created_at)));
 
 function viewFacturaCard(p){
+  if (modoFactura() === 'manual') return viewFacturaManual(p);
   if (!esSupa()) return `<div class="card pad"><h3 style="margin-bottom:6px">Factura electrónica</h3><div class="note info">${IC.info}<div>La facturación SIFEN funciona en la versión conectada a la base compartida (con login). En esta versión de prueba no está disponible.</div></div></div>`;
   const fs = facturasDe(p.id); const act = [...fs].reverse().find(f => F_ACTIVOS.includes(f.estado)); const ult = fs[fs.length-1];
   const muestra = act || ult;
@@ -1339,7 +1342,7 @@ function abrirFacturar(pid){
   const p = S.presupuestos.find(x => x.id === pid); if (!p) return;
   const {lineas, total, ivaPct} = lineasFactura(p);
   const c = p.cliente || {};
-  FX = {pid, total, ivaPct, receptor:{document_type: c.tipoDoc || 'ruc', document_number: c.documento || '', name: c.razonSocial || c.empresa || c.nombre || '', email: c.email || ''}, condicion:'contado', plazo_dias:30, items: lineas};
+  FX = {manual: modoFactura() === 'manual', pid, total, ivaPct, receptor:{document_type: c.tipoDoc || 'ruc', document_number: c.documento || '', name: c.razonSocial || c.empresa || c.nombre || '', email: c.email || ''}, condicion:'contado', plazo_dias:30, items: lineas};
   dibujarFacturar();
 }
 function dibujarFacturar(){
@@ -1347,11 +1350,11 @@ function dibujarFacturar(){
   const p = S.presupuestos.find(x => x.id === FX.pid); const Pp = P();
   const suma = FX.items.reduce((s,i) => s + (Math.round(+i.importe) || 0), 0);
   const ivaMonto = FX.items.reduce((s,i) => s + (+i.tasa_iva ? Math.round((+i.importe||0) * +i.tasa_iva / (100 + +i.tasa_iva)) : 0), 0);
-  const faltaCfg = !/^\d{1,3}$/.test(String(Pp.establecimiento||'')) || !/^\d{1,3}$/.test(String(Pp.puntoExpedicion||''));
+  const faltaCfg = !FX.manual && (!/^\d{1,3}$/.test(String(Pp.establecimiento||'')) || !/^\d{1,3}$/.test(String(Pp.puntoExpedicion||'')));
   const w = document.createElement('div'); w.className = 'dlg-ov fx-ov';
   w.innerHTML = `<div class="dlg" style="max-width:720px;max-height:92vh;overflow:auto">
-    <h3>Facturar ${esc(p.numero)}</h3>
-    <p class="small muted" style="margin:0 0 12px">Revisá los datos: una vez aprobada por SIFEN, corregirla requiere anulación o nota de crédito.</p>
+    <h3>${FX.manual ? 'Preparar factura' : 'Facturar'} ${esc(p.numero)}</h3>
+    <p class="small muted" style="margin:0 0 12px">${FX.manual ? "Revisá los datos, copialos y emití la factura en e-Kuatia'i. Después registrá acá el número que te dio." : 'Revisá los datos: una vez aprobada por SIFEN, corregirla requiere anulación o nota de crédito.'}</p>
     ${faltaCfg ? `<div class="note bad" style="margin-bottom:10px">${IC.warn}<div>Falta configurar establecimiento y punto de expedición en Catálogo → Parámetros.</div></div>` : ''}
     <div class="grid2">
       <label class="f">Documento del cliente<select class="in" data-fx="receptor.document_type">${[['ruc','RUC'],['ci','Cédula'],['none','Sin identificar']].map(([k,n]) => `<option value="${k}" ${FX.receptor.document_type===k?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -1372,13 +1375,13 @@ function dibujarFacturar(){
     <button class="btn sm ghost" onclick="FX.items.push({descripcion:'',cantidad:1,importe:'',tasa_iva:${+(Pp.ivaDefecto ?? 10)}});dibujarFacturar()">+ Renglón</button>
     <div class="row" style="justify-content:space-between;margin-top:10px;font-size:14px"><span class="muted">IVA incluido aprox.: <b class="num" id="fxIva">${gs(ivaMonto)}</b></span><span>Total factura: <b class="num" style="font-size:18px" id="fxTot">${gs(suma)}</b></span></div>
     <div id="fxAvisos" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${avisosFactura(suma)}</div>
-    <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" onclick="document.querySelector('.fx-ov').remove()">Cancelar</button><button class="btn pri" id="fxGo" ${faltaCfg?'disabled':''} onclick="emitirFactura()">Emitir factura</button></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" onclick="document.querySelector('.fx-ov').remove()">Cancelar</button>${FX.manual ? `<button class="btn" onclick="copiarResumenFX()">${IC.copy} Copiar datos</button><a class="btn" href="https://www.dnit.gov.py/web/e-kuatia/ekuatia-i" target="_blank" rel="noopener">Abrir e-Kuatia'i</a><button class="btn pri" id="fxGo" onclick="registrarFacturaManual()">Ya la emití: registrar N°</button>` : `<button class="btn pri" id="fxGo" ${faltaCfg?'disabled':''} onclick="emitirFactura()">Emitir factura</button>`}</div>
   </div>`;
   document.body.appendChild(w);
 }
 function avisosFactura(suma){
   const out = [];
-  if (FX.ivaPct === 0) out.push(`<div class="note warn" style="font-size:13px">${IC.warn}<div>El presupuesto no tenía IVA configurado: el precio se factura <b>como IVA incluido</b>. Confirmalo con el contador antes de producción.</div></div>`);
+  if (FX.ivaPct === 0) out.push(`<div class="note warn" style="font-size:13px">${IC.warn}<div>El presupuesto no tenía IVA configurado: el precio se factura <b>como IVA incluido</b>. Confirmalo con el contador ${FX.manual ? 'antes de emitir' : 'antes de producción'}.</div></div>`);
   if (Math.round(suma) !== Math.round(FX.total)) out.push(`<div class="note warn" style="font-size:13px">${IC.warn}<div>El total (${gs(suma)}) no coincide con el del presupuesto (${gs(FX.total)}).</div></div>`);
   return out.join('');
 }
@@ -1439,6 +1442,84 @@ async function anularFactura(id){
   const r = await llamarSifen({accion:'anular', factura_id:id, motivo});
   if (!r || !r.ok) { toast('No se pudo anular: ' + ((r && r.error) || '')); return; }
   upsertFactura(r.factura); render(); toast(r.accion === 'nce' ? 'Se emitió nota de crédito' : 'Factura anulada');
+}
+
+
+/* ============ FACTURACIÓN MANUAL (e-Kuatia'i) ============ */
+const modoFactura = () => (P().modoFactura === 'sifen' ? 'sifen' : 'manual');
+const facturaManualActiva = p => [...(p.facturasManual || [])].reverse().find(f => f.estado === 'emitida');
+const tieneFacturaActiva = p => modoFactura() === 'manual' ? !!facturaManualActiva(p) : !!(p.factura && ['pendiente','signed','approved','approved_obs','unknown'].includes(p.factura.estado));
+const docTxt = r => r.document_type === 'none' ? 'Sin identificar' : (r.document_type === 'ci' ? 'CI ' : 'RUC ') + (r.document_number || '—');
+
+function viewFacturaManual(p){
+  const act = facturaManualActiva(p); const todas = p.facturasManual || [];
+  const previas = todas.filter(f => f !== act);
+  return `<div class="card pad">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><h3>Factura <span class="small muted" style="font-family:var(--fb);font-weight:500">· e-Kuatia'i</span></h3>
+      ${act ? `<span class="tag" style="background:var(--ok-soft);color:var(--ok)"><span class="dot"></span>Facturada</span>` : (p.estado === 'venta' ? `<span class="tag" style="background:var(--warn-soft);color:#9a6212"><span class="dot"></span>Sin facturar</span>` : '')}</div>
+    ${act ? `<div class="grid2" style="gap:4px 18px;font-size:14px">
+        <div><span class="muted">N°</span> <b>${esc(act.numero)}</b></div>
+        <div><span class="muted">Total</span> <b class="num">${gs(act.total)}</b></div>
+        <div><span class="muted">Fecha</span> ${fDate(act.fecha)}</div>
+        <div><span class="muted">Cliente</span> ${esc(act.receptor && act.receptor.name || '')}</div>
+        ${act.cdc ? `<div style="grid-column:1/-1"><span class="muted">CDC</span> <span class="mono">${esc(act.cdc)}</span></div>` : ''}
+        <div class="small muted" style="grid-column:1/-1">Registrada ${fDT(act.at)} por ${esc(nm(act.por))}</div></div>` :
+      `<p class="small muted" style="margin:0">La factura se emite en <b>e-Kuatia'i</b> (sistema gratuito de la DNIT). Acá preparás los datos para copiar y después registrás el número que te da e-Kuatia'i.</p>`}
+    <div class="row" style="margin-top:12px">
+      ${!act && p.estado === 'venta' && S.canAdmin ? `<button class="btn pri" onclick="abrirFacturar('${esc(p.id)}')">Preparar factura</button>` : ''}
+      ${!act && p.estado === 'venta' && !S.canAdmin ? `<span class="small muted">Un socio debe emitir la factura.</span>` : ''}
+      ${act ? `<button class="btn sm" onclick="copiarResumenGuardado('${esc(p.id)}')">${IC.copy} Copiar datos</button>` : ''}
+      ${act && S.canAdmin ? `<button class="btn sm bad" onclick="anularFacturaManual('${esc(p.id)}')">Anular registro</button>` : ''}
+      <a class="btn sm ghost" href="https://www.dnit.gov.py/web/e-kuatia/ekuatia-i" target="_blank" rel="noopener">Abrir e-Kuatia'i</a>
+    </div>
+    ${previas.length ? `<details style="margin-top:10px"><summary class="small" style="cursor:pointer">Registros anulados (${previas.length})</summary><ul class="tl" style="margin-top:8px">${previas.reverse().map(f => `<li><time>${fDT(f.at)}</time>N° ${esc(f.numero)} · ${gs(f.total)} — anulado: ${esc(f.motivoAnulacion || '')}</li>`).join('')}</ul></details>` : ''}
+  </div>`;
+}
+function textoResumenFactura(numPres, d){
+  const r = d.receptor;
+  const lin = d.items.map((i, k) => { const q = +i.cantidad || 1; return `${k+1}. ${i.descripcion}\n   Cantidad: ${q} · Precio unitario: ${gs(Math.round((+i.importe||0)/q))} · Total: ${gs(i.importe)} · IVA ${+i.tasa_iva ? i.tasa_iva + '%' : 'Exento'}`; });
+  const iva10 = d.items.filter(i => +i.tasa_iva === 10).reduce((s,i) => s + Math.round((+i.importe||0)/11), 0);
+  const iva5 = d.items.filter(i => +i.tasa_iva === 5).reduce((s,i) => s + Math.round((+i.importe||0)/21), 0);
+  const total = d.items.reduce((s,i) => s + (Math.round(+i.importe)||0), 0);
+  return [`DATOS PARA FACTURA — Presupuesto ${numPres}`, '',
+    `Cliente: ${r.name}`, `Documento: ${docTxt(r)}`, r.email ? `Email: ${r.email}` : null,
+    `Condición: ${d.condicion === 'credito' ? 'Crédito a ' + d.plazo_dias + ' días' : 'Contado'}`, '',
+    'Detalle (precios con IVA incluido):', ...lin, '',
+    `TOTAL: ${gs(total)}`, iva10 ? `IVA 10% incluido (aprox.): ${gs(iva10)}` : null, iva5 ? `IVA 5% incluido (aprox.): ${gs(iva5)}` : null].filter(x => x !== null).join('\n');
+}
+async function copiar(t){ try { await navigator.clipboard.writeText(t); toast('Copiado'); return true; } catch(e) { toast('No se pudo copiar automáticamente'); return false; } }
+function copiarResumenFX(){ const p = S.presupuestos.find(x => x.id === FX.pid); copiar(textoResumenFactura(p.numero, FX)); }
+function copiarResumenGuardado(pid){ const p = S.presupuestos.find(x => x.id === pid); const f = facturaManualActiva(p); if (f) copiar(textoResumenFactura(p.numero, f)); }
+async function registrarFacturaManual(){
+  const p = S.presupuestos.find(x => x.id === FX.pid);
+  const suma = FX.items.reduce((s,i) => s + (Math.round(+i.importe) || 0), 0);
+  const hoy = new Date(); const hoyIso = new Date(hoy.getTime() - hoy.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+  const r = await dialog('Registrar factura emitida', `<p class="small" style="margin-top:0">Completá con los datos de la factura que emitiste en e-Kuatia'i.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label class="f">Número de factura *<span class="h">Formato 001-001-0000123</span><input class="in" id="rmN" placeholder="001-001-0000001"></label>
+      <div class="grid2"><label class="f">Fecha *<input class="in" type="date" id="rmF" value="${hoyIso}"></label>
+      <label class="f">Total facturado ₲ *<input class="in r" type="number" id="rmT" value="${suma}"></label></div>
+      <label class="f">CDC <span class="h">Opcional: código de 44 dígitos de la factura</span><input class="in" id="rmC" inputmode="numeric"></label></div>`, 'Registrar', () => {
+      const n = $('#rmN').value.trim(), c = $('#rmC').value.replace(/\s/g, ''), t = pf($('#rmT').value), f = $('#rmF').value;
+      if (!/^\d{3}-\d{3}-\d{7}$/.test(n)) { toast('Número inválido: usá el formato 001-001-0000123'); return false; }
+      if (c && !/^\d{44}$/.test(c)) { toast('El CDC debe tener 44 dígitos'); return false; }
+      if (!(t > 0) || !f) { toast('Completá fecha y total'); return false; }
+      return {numero:n, cdc:c, total:Math.round(t), fecha:f};
+    });
+  if (!r) return;
+  const otra = S.presupuestos.find(x => x.id !== p.id && (x.facturasManual||[]).some(f => f.estado === 'emitida' && f.numero === r.numero));
+  if (otra && !(await dialog('Número repetido', `El número ${esc(r.numero)} ya está registrado en ${esc(otra.numero)}. ¿Registrarlo igual?`, 'Registrar igual'))) return;
+  const reg = {id: uid(), ...r, estado:'emitida', receptor: clone(FX.receptor), items: clone(FX.items), condicion: FX.condicion, plazo_dias: FX.plazo_dias, por: S.me, at: now()};
+  await patchPres(p.id, {facturasManual: [...(p.facturasManual||[]), reg], factura: {numero: r.numero, estado: 'emitida', manual: true, total: r.total}},
+    `Factura registrada N° ${r.numero} por ${gs(r.total)}${r.total !== suma ? ' (difiere del total preparado: ' + gs(suma) + ')' : ''}`);
+  document.querySelector('.fx-ov')?.remove(); toast('Factura registrada');
+}
+async function anularFacturaManual(pid){
+  const p = S.presupuestos.find(x => x.id === pid); const act = facturaManualActiva(p); if (!act) return;
+  const m = await dialog('Anular registro de factura', `<p class="small" style="margin-top:0">Esto solo marca el registro como anulado en esta app. <b>La factura también tiene que anularse en e-Kuatia'i</b> (cancelación dentro de 48 h o nota de crédito, según corresponda).</p><label class="f">Motivo *<input class="in" id="dMotM" placeholder="Ej. error en el RUC"></label>`, 'Anular registro', () => { const v = $('#dMotM').value.trim(); if (v.length < 5) { toast('Motivo de al menos 5 caracteres'); return false; } return v; });
+  if (!m) return;
+  const lista = (p.facturasManual||[]).map(f => f.id === act.id ? {...f, estado:'anulada', motivoAnulacion:m, anuladaPor:S.me, anuladaAt:now()} : f);
+  await patchPres(pid, {facturasManual: lista, factura: null}, `Registro de factura N° ${act.numero} anulado: ${m}`);
 }
 
 /* ============ arranque ============ */
