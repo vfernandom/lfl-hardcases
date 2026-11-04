@@ -258,6 +258,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const durTxt = ms => { const h = ms/36e5; if (h < 1) return fmtN(ms/6e4) + ' min'; if (h < 48) return fmtN(h,1) + ' h'; return fmtN(h/24,1) + ' días'; };
 
 const IC = {
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.7.7 2.7 2.4 3 5.2"/></svg>',
   dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>',
@@ -348,13 +349,13 @@ function paramSnap(P){ const s = {}; ['tarifaHora','gastosMensuales','horasProdu
 /* ============ estado ============ */
 const S = {
   mode:'loading', db:null, user:null, me:null, canAdmin:false, canWrite:true, names:{},
-  params:null, materiales:[], productos:[], presupuestos:[], got:{}, facturas:[], perfiles:[], sb:null, email:'',
+  params:null, materiales:[], productos:[], presupuestos:[], clientes:[], got:{}, facturas:[], perfiles:[], sb:null, email:'',
   route:'tablero', detailId:null, detailV:null, draft:null, editId:null,
   f:{per:'90', prod:'', com:'', est:''}, lf:{est:'abiertos', q:''}, catTab:'param',
 };
 const P = () => S.params || {};
 const LS_KEY = 'lfl-presupuestos-prueba-v1';
-function persist(){ if (S.mode !== 'mem') return; try { localStorage.setItem(LS_KEY, JSON.stringify({params:S.params, materiales:S.materiales, productos:S.productos, presupuestos:S.presupuestos})); } catch(e) { toast('El navegador no permite guardar datos (¿modo privado?).'); } }
+function persist(){ if (S.mode !== 'mem') return; try { localStorage.setItem(LS_KEY, JSON.stringify({params:S.params, materiales:S.materiales, productos:S.productos, presupuestos:S.presupuestos, clientes:S.clientes})); } catch(e) { toast('El navegador no permite guardar datos (¿modo privado?).'); } }
 
 /* ============ datos (base compartida o memoria) ============ */
 function banner(t){ $('#banner').innerHTML = t ? `<div class="banner">${t}</div>` : ''; }
@@ -379,8 +380,8 @@ async function init(){
     clearTimeout(loadTimer);
     S.mode = 'mem'; S.canAdmin = true;
     let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {}
-    if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; }
-    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; }
+    if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; S.clientes = saved.clientes || []; }
+    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; }
     try { S.me = localStorage.getItem(LS_KEY + '-nombre') || ''; } catch(e) {}
     banner('Versión de prueba: los datos se guardan <b>solo en este dispositivo</b> y no se comparten con los demás.');
     render();
@@ -446,7 +447,7 @@ async function nextNumero(){
 
 /* ============ navegación ============ */
 const ROUTES = [
-  {k:'tablero', n:'Tablero', ic:'dash'}, {k:'presupuestos', n:'Presupuestos', ic:'list'},
+  {k:'tablero', n:'Tablero', ic:'dash'}, {k:'presupuestos', n:'Presupuestos', nm:'Presup.', ic:'list'}, {k:'clientes', n:'Clientes', ic:'users'},
   {k:'nuevo', n:'Nuevo presupuesto', nm:'Nuevo', ic:'plus'}, {k:'asistente', n:'Asistente WhatsApp', nm:'Asistente', ic:'chat'},
   {k:'catalogo', n:'Catálogo y costos', nm:'Catálogo', ic:'box'},
 ];
@@ -472,6 +473,7 @@ function doRender(){
   v.dataset.route = S.route;
   if (S.route === 'tablero') v.innerHTML = viewTablero();
   else if (S.route === 'presupuestos') v.innerHTML = viewLista();
+  else if (S.route === 'clientes') v.innerHTML = viewClientes();
   else if (S.route === 'nuevo') { if (!S.draft) newDraft(); v.innerHTML = viewEditor(); v.dataset.sig = draftSig(); renderSummary(); }
   else if (S.route === 'asistente') { v.innerHTML = viewChat(); chatBoot(); }
   else if (S.route === 'catalogo') v.innerHTML = viewCatalogo();
@@ -585,7 +587,7 @@ function newDraft(from){
   const p = P();
   S.draft = from ? clone(from) : {cliente:{nombre:'', telefono:'', empresa:'', email:'', tipoDoc:'ruc', documento:'', razonSocial:''}, items:[], adicionales:[], margen: p.margenObjetivo ?? 35, descuento:0, notas:'', motivoCambio:''};
 }
-function draftSig(){ const d = S.draft; if (!d) return ''; return d.items.map(i => i.id + ':' + (i.lineas||[]).length).join('|') + '#' + d.adicionales.length + '#' + (S.editId||'') + '#' + S.materiales.length + '#' + S.productos.length + '#' + (S.params?1:0); }
+function draftSig(){ const d = S.draft; if (!d) return ''; return d.items.map(i => i.id + ':' + (i.lineas||[]).length).join('|') + '#' + d.adicionales.length + '#' + (S.editId||'') + '#' + S.materiales.length + '#' + S.productos.length + '#' + (d.cliente && d.cliente.clienteId || '') + '#' + (S.params?1:0); }
 function matById(id){ return S.materiales.find(m => m.id === id); }
 function matByRol(r){ return S.materiales.find(m => m.rol === r); }
 function itemDesdeProducto(prod, cant){
@@ -614,6 +616,7 @@ function viewEditor(){
   <div class="ed">
    <div>
     <div class="card pad sec"><div class="sec-h"><h2>Cliente</h2></div>
+      ${p ? '' : cliBuscadorHTML(d)}
       <div class="grid2">
         <label class="f">Nombre *<input class="in" data-b="cliente.nombre" value="${esc(d.cliente.nombre)}" ${p?'disabled':''}></label>
         <label class="f">Empresa<input class="in" data-b="cliente.empresa" value="${esc(d.cliente.empresa)}" ${p?'disabled':''}></label>
@@ -758,6 +761,8 @@ async function saveDraft(estado, origen){
       toast(`${p.numero} v${ver.v} guardada`);
       S.editId = null; S.draft = null; newDraft(); go('presupuestos'); openDetail(p.id);
     } else {
+      const cid = await asegurarCliente(d.cliente);
+      if (cid) d.cliente.clienteId = cid;
       const numero = await nextNumero();
       const ver = buildVersion(d, 1);
       const doc = {numero, cliente:clone(d.cliente), estado, aprobado:null, versiones:[ver], creado:now(), creadoPor:S.me, actualizado:now(), origen: origen || 'formulario',
@@ -957,7 +962,7 @@ function viewParams(ro){
     ${S.mode==='mem' ? `<div class="row" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);justify-content:space-between"><span class="small muted">Prueba local: podés empezar de cero cuando quieras.</span><button class="btn sm bad" onclick="resetPrueba()">Borrar datos de prueba</button></div>` : ''}
   </div>`;
 }
-async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; persist(); render(); toast('Datos borrados'); }
+async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; persist(); render(); toast('Datos borrados'); }
 async function saveParams(){
   const keys = ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','margenObjetivo','margenMinimo','descuentoMax','redondeo','validezDias','anticipoPct','seguimientoDias','ivaPct'];
   const d = {}; keys.forEach(k => { const v = $('#pp-'+k).value; d[k] = v === '' ? null : pf(v); });
@@ -1092,7 +1097,19 @@ async function chatStep(v, t){
   }
   if (v === 'reset') { chatInicio(); return; }
   if (s === 'consulta') { if (m || /^\d+$/.test(t)) return consultar((m && m[1]) || t); ask('consulta', 'No reconocí el número. Escribilo como LFL-003.'); return drawChat(); }
-  if (s === 'cliente') { if (t.length < 2) { ask('cliente', '¿Nombre del cliente?'); return drawChat(); } c.cliente = {nombre:t, telefono:'', empresa:'', email:''}; ask('tel', `¿Número de WhatsApp de ${t}? Con código de país (ej. 595981…).`, [{l:'Omitir', v:'omitir'}]); return drawChat(); }
+  if (s === 'cliente') { if (t.length < 2) { ask('cliente', '¿Nombre del cliente?'); return drawChat(); }
+    const encontrados = buscarClientes(t, 5);
+    if (encontrados.length) { c.nombreTipeado = t; ask('cliElegir', `Encontré ${encontrados.length === 1 ? 'este cliente agendado' : 'estos clientes agendados'}. ¿Es alguno?`, [...encontrados.map(x => ({l: x.nombre + (x.empresa ? ' · ' + x.empresa : ''), v: 'cli:' + x.id})), {l: 'No, es nuevo', v: 'nuevo'}]); return drawChat(); }
+    c.cliente = {nombre:t, telefono:'', empresa:'', email:''}; ask('tel', `¿Número de WhatsApp de ${t}? Con código de país (ej. 595981…).`, [{l:'Omitir', v:'omitir'}]); return drawChat(); }
+  if (s === 'cliElegir') {
+    if (v && v.startsWith('cli:')) { const x = S.clientes.find(k => 'cli:' + k.id === v);
+      if (x) { c.cliente = {clienteId: x.id, nombre: x.nombre || '', empresa: x.empresa || '', telefono: x.telefono || '', email: x.email || '', tipoDoc: x.tipoDoc || 'ruc', documento: x.documento || '', razonSocial: x.razonSocial || ''};
+        c.items = []; c.adicionales = []; bot(`Listo, uso los datos de ${x.nombre}${x.telefono ? ' (' + x.telefono + ')' : ''}.`);
+        if (!x.telefono) { ask('tel', `¿Número de WhatsApp de ${x.nombre}?`, [{l:'Omitir', v:'omitir'}]); return drawChat(); }
+        return askProducto(); } }
+    c.cliente = {nombre: c.nombreTipeado, telefono:'', empresa:'', email:''};
+    ask('tel', `Nuevo cliente: ${c.nombreTipeado}. ¿Número de WhatsApp? Con código de país (ej. 595981…).`, [{l:'Omitir', v:'omitir'}]); return drawChat();
+  }
   if (s === 'tel') { if (v !== 'omitir') c.cliente.telefono = t.replace(/[^\d+]/g, ''); c.items = []; c.adicionales = []; return askProducto(); }
   if (s === 'producto') {
     if (v === 'medida' || /medida/i.test(t||'')) { c.cur = {tipo:'medida'}; ask('dims', 'Indicame las medidas interiores en cm: largo × ancho × alto (ej. 110x40x15).'); return drawChat(); }
@@ -1207,7 +1224,7 @@ async function iniciarSesion(session){
   ]);
   clearTimeout(timer);
   if (d.error) { banner('No se pudieron leer los datos: ' + esc(d.error.message)); return; }
-  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = [];
+  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = []; S.clientes = [];
   d.data.forEach(aplicarDoc);
   S.perfiles = pf.data || []; aplicarPerfiles();
   S.facturas = fc.data || [];
@@ -1521,6 +1538,144 @@ async function anularFacturaManual(pid){
   const lista = (p.facturasManual||[]).map(f => f.id === act.id ? {...f, estado:'anulada', motivoAnulacion:m, anuladaPor:S.me, anuladaAt:now()} : f);
   await patchPres(pid, {facturasManual: lista, factura: null}, `Registro de factura N° ${act.numero} anulado: ${m}`);
 }
+
+
+/* ============ CLIENTES (catastro) ============ */
+const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+const soloDig = s => String(s || '').replace(/\D/g, '');
+const CLI_CAMPOS = ['nombre','empresa','telefono','email','tipoDoc','documento','razonSocial','direccion','ciudad','notas'];
+function buscarClientes(q, n = 8){
+  q = normTxt(q); if (!q) return [];
+  const qd = soloDig(q);
+  return S.clientes.filter(c => normTxt([c.nombre, c.empresa, c.razonSocial, c.documento, c.email].join(' ')).includes(q) || (qd.length >= 4 && (soloDig(c.telefono).includes(qd) || soloDig(c.documento).includes(qd))))
+    .sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).slice(0, n);
+}
+const presDeCliente = id => S.presupuestos.filter(p => p.cliente && p.cliente.clienteId === id);
+function cliLinea(c){ return `${esc(c.nombre)}${c.empresa ? ' · ' + esc(c.empresa) : ''}<div class="small muted">${[c.documento ? (c.tipoDoc === 'ci' ? 'CI ' : 'RUC ') + esc(c.documento) : '', c.telefono ? esc(c.telefono) : ''].filter(Boolean).join(' · ') || 'Sin documento ni teléfono'}</div>`; }
+
+// Agenda o actualiza el cliente al guardar un presupuesto. Devuelve el id o null si no se pudo.
+async function asegurarCliente(cl){
+  if (!cl || !String(cl.nombre || '').trim()) return null;
+  const datos = {}; CLI_CAMPOS.forEach(k => { if (cl[k] != null && String(cl[k]).trim() !== '') datos[k] = String(cl[k]).trim(); });
+  let c = cl.clienteId && S.clientes.find(x => x.id === cl.clienteId);
+  const explicito = !!c; // elegido del buscador: se actualizan sus datos; coincidencia automática: solo se completan vacíos
+  if (!c) {
+    const d = soloDig(cl.documento), t = soloDig(cl.telefono);
+    c = S.clientes.find(x => (d.length >= 5 && soloDig(x.documento) === d) || (t.length >= 7 && soloDig(x.telefono) === t));
+  }
+  try {
+    if (c) {
+      const merged = {...c}; delete merged.id; let cambio = false;
+      Object.entries(datos).forEach(([k,v]) => { if (merged[k] !== v && (explicito || !String(merged[k] || '').trim())) { merged[k] = v; cambio = true; } });
+      if (cambio) { merged.actualizado = now(); await put('clientes', c.id, merged); }
+      return c.id;
+    }
+    const id = 'c-' + uid();
+    await put('clientes', id, {...datos, tipoDoc: datos.tipoDoc || 'ruc', creado: now(), creadoPor: S.me});
+    return id;
+  } catch(e) { console.warn('No se pudo agendar el cliente', e); return null; }
+}
+
+// --- buscador dentro del presupuesto ---
+function cliBuscadorHTML(d){
+  const sel = d.cliente.clienteId && S.clientes.find(x => x.id === d.cliente.clienteId);
+  if (sel) return `<div class="note ok" style="margin-bottom:12px;align-items:center">${IC.check}<div class="grow">Cliente agendado: <b>${esc(sel.nombre)}</b>${sel.empresa ? ' · ' + esc(sel.empresa) : ''}. Si cambiás algún dato, se actualiza en su ficha.</div><button class="btn sm" onclick="soltarCliente()">Cambiar</button></div>`;
+  return `<div style="position:relative;margin-bottom:12px">
+    <input class="in" id="cliBus" placeholder="🔍 Buscar cliente agendado por nombre, empresa, RUC o teléfono…" autocomplete="off">
+    <div id="cliRes" class="card" style="position:absolute;left:0;right:0;top:42px;z-index:20;display:none;max-height:300px;overflow:auto"></div>
+    <div class="small muted" style="margin-top:4px">${S.clientes.length ? `${S.clientes.length} clientes agendados.` : 'Todavía no hay clientes agendados.'} Si es nuevo, completá los datos abajo: se agenda solo al guardar.</div></div>`;
+}
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cliBus') return;
+  const box = $('#cliRes'); const L = buscarClientes(e.target.value);
+  if (!e.target.value.trim()) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = L.length ? L.map(c => `<button type="button" class="btn ghost" style="display:block;width:100%;text-align:left;border-radius:0;border-bottom:1px solid var(--line);padding:9px 12px;height:auto;white-space:normal;font-weight:500" onmousedown="event.preventDefault();elegirCliente('${esc(c.id)}')">${cliLinea(c)}</button>`).join('')
+    : `<div class="small muted" style="padding:10px 12px">Sin resultados. Completá los datos abajo para agendarlo.</div>`;
+});
+document.addEventListener('focusout', e => { if (e.target.id === 'cliBus') setTimeout(() => { const b = $('#cliRes'); if (b) b.style.display = 'none'; }, 150); });
+function elegirCliente(id){
+  const c = S.clientes.find(x => x.id === id); if (!c || !S.draft) return;
+  S.draft.cliente = {clienteId: c.id, nombre: c.nombre || '', empresa: c.empresa || '', telefono: c.telefono || '', email: c.email || '', tipoDoc: c.tipoDoc || 'ruc', documento: c.documento || '', razonSocial: c.razonSocial || ''};
+  $('#view').dataset.sig = ''; render();
+}
+function soltarCliente(){ if (!S.draft) return; S.draft.cliente = {nombre:'', telefono:'', empresa:'', email:'', tipoDoc:'ruc', documento:'', razonSocial:''}; $('#view').dataset.sig = ''; render(); }
+
+// --- pantalla Clientes ---
+S.cf = {q:''};
+function viewClientes(){
+  const q = S.cf.q;
+  const L = q.trim() ? buscarClientes(q, 500) : S.clientes.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+  return `<div class="top"><div><h1>Clientes</h1><p>Catastro de clientes. Se agendan solos al guardar un presupuesto, o a mano desde acá.</p></div>
+    <button class="btn pri" onclick="editarCliente()">${IC.plus} Nuevo cliente</button></div>
+  ${(() => { const sin = S.presupuestos.filter(p => p.cliente && p.cliente.nombre && !p.cliente.clienteId); return sin.length ? `<div class="note info" style="margin-bottom:14px;align-items:center">${IC.info}<div class="grow">Hay ${sin.length} presupuesto${sin.length > 1 ? 's' : ''} con clientes sin agendar (creados antes de este módulo).</div><button class="btn sm dark" onclick="importarClientes()">Agendarlos</button></div>` : ''; })()}
+  <div class="row" style="margin-bottom:14px"><input class="in grow listq" style="max-width:420px" placeholder="Buscar por nombre, empresa, RUC o teléfono" value="${esc(q)}" data-cq oninput="S.cf.q=this.value;clearTimeout(window._cq);window._cq=setTimeout(()=>{const p=this.selectionStart;render();requestAnimationFrame(()=>{const i=document.querySelector('[data-cq]');if(i){i.focus();i.setSelectionRange(p,p)}})},250)"></div>
+  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>Cliente</th><th class="hide-m">Email</th><th class="r">Presup.</th><th class="r">Ventas</th><th class="hide-m">Último movimiento</th></tr></thead><tbody>
+    ${L.map(c => { const ps = presDeCliente(c.id); const vs = ps.filter(p => p.estado === 'venta'); const ult = ps.map(p => p.actualizado || p.creado).sort().pop();
+      return `<tr class="click" onclick="fichaCliente('${esc(c.id)}')"><td>${cliLinea(c)}</td><td class="hide-m small">${esc(c.email || '—')}</td><td class="r num">${ps.length}</td><td class="r num">${vs.length ? gs(vs.reduce((s,p) => s + (+p.precioFinal||0), 0)) : '—'}</td><td class="hide-m small muted">${ult ? fDate(ult) : '—'}</td></tr>`; }).join('')}
+  </tbody></table>` : `<div class="empty"><b>${q ? 'Sin resultados' : 'Todavía no hay clientes'}</b>${q ? 'Probá con otra búsqueda.' : 'Se agendan al guardar un presupuesto, o tocá “Nuevo cliente”.'}</div>`}</div>`)}`;
+}
+async function editarCliente(id){
+  const c = id ? S.clientes.find(x => x.id === id) : {tipoDoc:'ruc'};
+  const f = (k, l, extra='') => `<label class="f">${l}<input class="in" id="cl-${k}" value="${esc(c[k] || '')}" ${extra}></label>`;
+  const r = await dialog(id ? 'Editar cliente' : 'Nuevo cliente', `<div style="display:flex;flex-direction:column;gap:10px;max-height:65vh;overflow:auto">
+    <div class="grid2">${f('nombre','Nombre / contacto *')}${f('empresa','Empresa')}</div>
+    <div class="grid2">${f('telefono','WhatsApp','inputmode="tel" placeholder="595981…"')}${f('email','Email','type="email"')}</div>
+    <div class="grid3"><label class="f">Documento<select class="in" id="cl-tipoDoc">${[['ruc','RUC'],['ci','Cédula'],['none','Sin identificar']].map(([k,n]) => `<option value="${k}" ${(c.tipoDoc||'ruc')===k?'selected':''}>${n}</option>`).join('')}</select></label>${f('documento','Número','placeholder="80012345-6"')}${f('razonSocial','Razón social')}</div>
+    <div class="grid2">${f('direccion','Dirección')}${f('ciudad','Ciudad')}</div>
+    <label class="f">Notas<textarea class="in" id="cl-notas" style="min-height:60px">${esc(c.notas || '')}</textarea></label></div>`, 'Guardar', () => {
+      const o = {}; CLI_CAMPOS.forEach(k => { const el = $('#cl-' + k); if (el) o[k] = el.value.trim(); });
+      if (!o.nombre) { toast('El nombre es obligatorio'); return false; }
+      if (o.tipoDoc === 'ruc' && o.documento && !/^\d{3,9}-\d$/.test(o.documento)) { toast('RUC con dígito verificador: 80012345-6'); return false; }
+      return o; });
+  if (!r) return;
+  const dup = S.clientes.find(x => x.id !== id && ((soloDig(r.documento).length >= 5 && soloDig(x.documento) === soloDig(r.documento)) || (soloDig(r.telefono).length >= 7 && soloDig(x.telefono) === soloDig(r.telefono))));
+  if (dup && !(await dialog('Posible duplicado', `Ya existe <b>${esc(dup.nombre)}</b> con el mismo documento o teléfono. ¿Guardar igual?`, 'Guardar igual'))) return;
+  const base = id ? (({id:_, ...rest}) => rest)(c) : {creado: now(), creadoPor: S.me};
+  const nid = id || 'c-' + uid();
+  await put('clientes', nid, {...base, ...r, actualizado: now()});
+  toast('Cliente guardado');
+  if (id) fichaCliente(id);
+}
+async function fichaCliente(id){
+  const c = S.clientes.find(x => x.id === id); if (!c) return;
+  const ps = presDeCliente(id).sort((a,b) => String(b.creado).localeCompare(String(a.creado)));
+  const w = document.createElement('div'); w.className = 'dlg-ov';
+  w.innerHTML = `<div class="dlg" style="max-width:620px;max-height:90vh;overflow:auto">
+    <div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin:0">${esc(c.nombre)}</h3><div class="small muted">${esc(c.empresa || '')}</div></div><button class="x" style="font-size:24px" data-c>×</button></div>
+    <div class="grid2" style="gap:4px 18px;font-size:14px;margin:12px 0">
+      <div><span class="muted">Documento</span> ${c.documento ? (c.tipoDoc === 'ci' ? 'CI ' : 'RUC ') + esc(c.documento) : '—'}</div>
+      <div><span class="muted">Razón social</span> ${esc(c.razonSocial || '—')}</div>
+      <div><span class="muted">WhatsApp</span> ${esc(c.telefono || '—')}</div>
+      <div><span class="muted">Email</span> ${esc(c.email || '—')}</div>
+      <div style="grid-column:1/-1"><span class="muted">Dirección</span> ${esc([c.direccion, c.ciudad].filter(Boolean).join(', ') || '—')}</div>
+      ${c.notas ? `<div style="grid-column:1/-1"><span class="muted">Notas</span> ${esc(c.notas)}</div>` : ''}
+    </div>
+    <div class="row"><button class="btn pri sm" data-np>${IC.plus} Nuevo presupuesto</button><button class="btn sm" data-ed>Editar datos</button>
+      ${S.canAdmin && !ps.length ? `<button class="btn sm bad" data-del>Eliminar</button>` : ''}</div>
+    <h3 style="margin:16px 0 6px">Presupuestos (${ps.length})</h3>
+    ${ps.length ? `<table class="t"><tbody>${ps.map(p => `<tr class="click" data-p="${esc(p.id)}"><td><b>${esc(p.numero)}</b><div class="small muted">${fDate(p.creado)} · ${esc((p.productos||[]).join(', '))}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r num">${p.precioFinal ? gs(p.precioFinal) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Sin presupuestos todavía.</p>'}
+  </div>`;
+  document.body.appendChild(w);
+  const cerrar = () => w.remove();
+  w.querySelector('[data-c]').onclick = cerrar;
+  w.onclick = e => { if (e.target === w) cerrar(); };
+  w.querySelector('[data-ed]').onclick = () => { cerrar(); editarCliente(id); };
+  w.querySelector('[data-np]').onclick = () => { cerrar(); S.editId = null; newDraft(); elegirClienteEnBorrador(id); go('nuevo'); };
+  const bd = w.querySelector('[data-del]'); if (bd) bd.onclick = async () => { cerrar(); if (await dialog('Eliminar cliente', `¿Eliminar a ${esc(c.nombre)} del catastro?`, 'Eliminar')) await del('clientes', id); };
+  w.querySelectorAll('[data-p]').forEach(tr => tr.onclick = () => { cerrar(); go('presupuestos'); openDetail(tr.dataset.p); });
+}
+async function importarClientes(){
+  const sin = S.presupuestos.filter(p => p.cliente && p.cliente.nombre && !p.cliente.clienteId).sort((a,b) => String(a.creado).localeCompare(String(b.creado)));
+  let n = 0;
+  for (const p of sin) {
+    const cid = await asegurarCliente(p.cliente); if (!cid) continue;
+    const doc = clone(p); delete doc.id; doc.cliente.clienteId = cid;
+    try { await put('presupuestos', p.id, doc); n++; } catch(e) {}
+  }
+  toast(n ? `${n} presupuesto${n > 1 ? 's' : ''} vinculado${n > 1 ? 's' : ''} a clientes` : 'No se pudo agendar (¿corriste el SQL de clientes?)');
+}
+function elegirClienteEnBorrador(id){ const c = S.clientes.find(x => x.id === id); if (!c) return; S.draft.cliente = {clienteId: c.id, nombre: c.nombre || '', empresa: c.empresa || '', telefono: c.telefono || '', email: c.email || '', tipoDoc: c.tipoDoc || 'ruc', documento: c.documento || '', razonSocial: c.razonSocial || ''}; $('#view').dataset.sig = ''; }
 
 /* ============ arranque ============ */
 (function(){ const h = location.hash.slice(1); S.route = ROUTES.some(r => r.k === h) ? h : 'tablero'; })();

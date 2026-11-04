@@ -46,6 +46,11 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
    - **Project Settings** → **API** (o *Data API*): copiá **Project URL** y la clave **anon / public**.
    - Mandámelas: son públicas por diseño. Las cargo en `sistema.html`.
 
+### Actualización: módulo de Clientes (si ya instalaste antes del 04/11/2026)
+- Supabase → **SQL Editor** → *New query* → pegá [02_clientes.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/02_clientes.sql) → **Run** (si aparece el aviso de "destructive operations", es normal: tocá *Run query*).
+- En la app: **Clientes → Agendarlos** para sumar los clientes de presupuestos anteriores.
+- Instalaciones nuevas no necesitan este paso: ya está incluido en `01_base.sql`.
+
 ## Parte B · Yo-Facturo (solo modo automático, requiere e-Kuatia)
 
 1. Creá la cuenta en yo-facturo.com (tiene prueba de 15 días).

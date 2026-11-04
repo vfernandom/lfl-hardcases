@@ -66,7 +66,7 @@ create trigger trg_proteger_rol before update on public.perfiles
 
 -- ---------- Documentos de la app (parámetros, materiales, productos, presupuestos) ----------
 create table if not exists public.docs (
-  col        text not null check (col in ('config','materiales','productos','presupuestos')),
+  col        text not null check (col in ('config','materiales','productos','presupuestos','clientes')),
   id         text not null,
   data       jsonb not null,
   updated_at timestamptz not null default now(),
@@ -97,6 +97,17 @@ begin new.updated_at := now(); new.updated_by := auth.uid(); return new; end $$;
 drop trigger if exists trg_tocar_docs on public.docs;
 create trigger trg_tocar_docs before insert or update on public.docs
   for each row execute function public.tocar_docs();
+
+-- Todos los usuarios con sesión pueden agendar y editar clientes; solo un socio borra.
+drop policy if exists docs_clientes_ins on public.docs;
+drop policy if exists docs_clientes_upd on public.docs;
+drop policy if exists docs_clientes_del on public.docs;
+create policy docs_clientes_ins on public.docs for insert to authenticated
+  with check (col = 'clientes');
+create policy docs_clientes_upd on public.docs for update to authenticated
+  using (col = 'clientes') with check (col = 'clientes');
+create policy docs_clientes_del on public.docs for delete to authenticated
+  using (col = 'clientes' and public.es_socio());
 
 -- ---------- Numeración de presupuestos LFL-001, LFL-002… ----------
 create sequence if not exists public.presupuesto_seq start 1;
