@@ -51,6 +51,34 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
 - En la app: **Clientes → Agendarlos** para sumar los clientes de presupuestos anteriores.
 - Instalaciones nuevas no necesitan este paso: ya está incluido en `01_base.sql`.
 
+### Actualización: módulos Caja y Contabilidad (04/11/2026)
+1. Supabase → **SQL Editor** → *New query* → pegá [03_finanzas.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/03_finanzas.sql) → **Run** (el aviso de "destructive operations" es normal). Si no corriste antes `02_clientes.sql`, corrélo primero.
+2. En la app: **Caja → Cuentas** → editá *Caja* y *Banco* (nombre real, saldo inicial y fecha). Sumá otras cuentas bancarias si hace falta. El saldo inicial cuenta como capital aportado.
+3. Revisá con el contador el **Plan de cuentas** (Contabilidad → Plan de cuentas) y ajustalo si hace falta.
+
+**Reglas que aplica la base de datos (no se pueden saltear desde la pantalla):**
+- Todo egreso de dinero necesita una **orden de pago aprobada por un socio**, y por el mismo monto.
+- Cualquier usuario crea órdenes de pago; solo un socio las aprueba, rechaza o anula una vez aprobadas.
+- Al registrar el pago, la orden pasa sola a *pagada* y no se puede pagar dos veces.
+- Los movimientos de dinero no se editan ni se borran: un socio los anula (si era un pago, la orden vuelve a *aprobada*).
+- Solo socios: cuentas de dinero, plan de cuentas y asientos manuales.
+
+**Cómo se arma la contabilidad (automática):**
+| Hecho | Asiento |
+|---|---|
+| Saldo inicial de una cuenta | Caja/Banco a Capital aportado |
+| Factura registrada | Clientes a Ventas + IVA débito |
+| Venta confirmada | Costo de materiales vendidos a Inventario (materiales del presupuesto + desperdicio, a costo promedio) |
+| Compra | Inventario / Gasto / Activo fijo + IVA crédito a Proveedores |
+| Cobro | Caja/Banco a Clientes |
+| Pago de orden | Proveedores (o la cuenta elegida) a Caja/Banco |
+| Aporte / préstamo / otro ingreso | Caja/Banco a Capital / Préstamos / Otros ingresos |
+| Transferencia | Cuenta destino a cuenta origen |
+| Ajuste de stock | Inventario ↔ Diferencias de inventario |
+| Sueldos devengados, depreciaciones, impuesto a la renta | Asiento manual |
+
+> Es contabilidad de gestión. Los libros y declaraciones oficiales siguen a cargo del contador.
+
 ## Parte B · Yo-Facturo (solo modo automático, requiere e-Kuatia)
 
 1. Creá la cuenta en yo-facturo.com (tiene prueba de 15 días).

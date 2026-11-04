@@ -258,6 +258,9 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const durTxt = ms => { const h = ms/36e5; if (h < 1) return fmtN(ms/6e4) + ' min'; if (h < 48) return fmtN(h,1) + ' h'; return fmtN(h/24,1) + ' días'; };
 
 const IC = {
+  cash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg>',
+  book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H20v16H5.5A1.5 1.5 0 0 0 4 20.5z"/><path d="M4 20.5A1.5 1.5 0 0 0 5.5 22H20M8 7.5h8M8 11h6"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.7.7 2.7 2.4 3 5.2"/></svg>',
   dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
@@ -305,6 +308,7 @@ const DEMO_PARAMS = {
   plazoEntrega:'A confirmar', seguimientoDias:7,
   motivosPerdida:['Precio','Plazo de entrega','Competencia','Sin respuesta del cliente','Cambió la necesidad','Otro'],
 };
+const DEMO_FONDOS = [{id:'f-caja', nombre:'Caja', tipo:'caja', cuenta:'1.1.01', saldoInicial:0, fechaSaldo:'2026-11-01', activo:true}, {id:'f-banco', nombre:'Banco (cuenta corriente)', tipo:'banco', cuenta:'1.1.02', saldoInicial:0, fechaSaldo:'2026-11-01', activo:true}];
 const DEMO_MAT = [
   ['Placa fenólico 9 mm','placa','m²',95000],['Perfil aluminio unión','perfil','m',28000],['Espuma 10 mm','espuma','m²',40000],
   ['Cierre mariposa','cierre','unidad',35000],['Manija retráctil','manija','unidad',30000],['Bisagra','bisagra','unidad',15000],
@@ -349,17 +353,17 @@ function paramSnap(P){ const s = {}; ['tarifaHora','gastosMensuales','horasProdu
 /* ============ estado ============ */
 const S = {
   mode:'loading', db:null, user:null, me:null, canAdmin:false, canWrite:true, names:{},
-  params:null, materiales:[], productos:[], presupuestos:[], clientes:[], got:{}, facturas:[], perfiles:[], sb:null, email:'',
+  params:null, materiales:[], productos:[], presupuestos:[], clientes:[], plan:[], fondos:[], proveedores:[], compras:[], ordenes:[], movimientos:[], asientos:[], stockajustes:[], got:{}, facturas:[], perfiles:[], sb:null, email:'',
   route:'tablero', detailId:null, detailV:null, draft:null, editId:null,
   f:{per:'90', prod:'', com:'', est:''}, lf:{est:'abiertos', q:''}, catTab:'param',
 };
 const P = () => S.params || {};
 const LS_KEY = 'lfl-presupuestos-prueba-v1';
-function persist(){ if (S.mode !== 'mem') return; try { localStorage.setItem(LS_KEY, JSON.stringify({params:S.params, materiales:S.materiales, productos:S.productos, presupuestos:S.presupuestos, clientes:S.clientes})); } catch(e) { toast('El navegador no permite guardar datos (¿modo privado?).'); } }
+function persist(){ if (S.mode !== 'mem') return; try { localStorage.setItem(LS_KEY, JSON.stringify({params:S.params, materiales:S.materiales, productos:S.productos, presupuestos:S.presupuestos, clientes:S.clientes, plan:S.plan, fondos:S.fondos, proveedores:S.proveedores, compras:S.compras, ordenes:S.ordenes, movimientos:S.movimientos, asientos:S.asientos, stockajustes:S.stockajustes})); } catch(e) { toast('El navegador no permite guardar datos (¿modo privado?).'); } }
 
 /* ============ datos (base compartida o memoria) ============ */
 function banner(t){ $('#banner').innerHTML = t ? `<div class="banner">${t}</div>` : ''; }
-function toast(t){ const d = document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(), 2800); }
+function toast(t){ document.querySelectorAll('.toast').forEach(x => x.remove()); const d = document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(), 2800); }
 
 async function init(){
   if (SB_URL && SB_KEY) return initSupa();
@@ -380,8 +384,8 @@ async function init(){
     clearTimeout(loadTimer);
     S.mode = 'mem'; S.canAdmin = true;
     let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {}
-    if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; S.clientes = saved.clientes || []; }
-    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; }
+    if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; S.clientes = saved.clientes || []; S.plan = saved.plan || []; S.fondos = saved.fondos || []; S.proveedores = saved.proveedores || []; S.compras = saved.compras || []; S.ordenes = saved.ordenes || []; S.movimientos = saved.movimientos || []; S.asientos = saved.asientos || []; S.stockajustes = saved.stockajustes || []; if (!S.fondos.length) S.fondos = clone(DEMO_FONDOS); }
+    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.fondos = clone(DEMO_FONDOS); }
     try { S.me = localStorage.getItem(LS_KEY + '-nombre') || ''; } catch(e) {}
     banner('Versión de prueba: los datos se guardan <b>solo en este dispositivo</b> y no se comparten con los demás.');
     render();
@@ -449,7 +453,8 @@ async function nextNumero(){
 const ROUTES = [
   {k:'tablero', n:'Tablero', ic:'dash'}, {k:'presupuestos', n:'Presupuestos', nm:'Presup.', ic:'list'}, {k:'clientes', n:'Clientes', ic:'users'},
   {k:'nuevo', n:'Nuevo presupuesto', nm:'Nuevo', ic:'plus'}, {k:'asistente', n:'Asistente WhatsApp', nm:'Asistente', ic:'chat'},
-  {k:'catalogo', n:'Catálogo y costos', nm:'Catálogo', ic:'box'},
+  {k:'caja', n:'Caja', ic:'cash'}, {k:'contabilidad', n:'Contabilidad', nm:'Contab.', ic:'book'},
+  {k:'catalogo', n:'Catálogo y costos', nm:'Catálogo', ic:'box'}, {k:'menu', n:'Más', ic:'dots'},
 ];
 function go(r){ if (location.hash !== '#'+r) location.hash = r; else { S.route = r; render(); } }
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); S.route = ROUTES.some(r => r.k === h) ? h : 'tablero'; if (S.route === 'nuevo' && !S.draft) newDraft(); render(); window.scrollTo(0,0); });
@@ -463,8 +468,8 @@ function render(){
 function doRender(){
   document.body.classList.toggle('sin-sesion', S.mode === 'login');
   if (S.mode === 'login') { $('#view').dataset.route = 'login'; $('#view').innerHTML = viewLogin(); return; }
-  $('#nav').innerHTML = ROUTES.map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.n}</a>`).join('');
-  $('#bnav').innerHTML = ROUTES.map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.nm||r.n}</a>`).join('');
+  $('#nav').innerHTML = ROUTES.filter(r => r.k !== 'menu').map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.n}</a>`).join('');
+  $('#bnav').innerHTML = ['tablero','presupuestos','nuevo','caja','menu'].map(k => ROUTES.find(r => r.k === k)).map(r => `<a href="#${r.k}" class="${S.route===r.k?'on':''}">${IC[r.ic]}${r.nm||r.n}</a>`).join('');
   $('#sidefoot').innerHTML = S.mode === 'loading' ? 'Conectando…' : (S.mode==='mem' ? `Versión de prueba · datos en este dispositivo<br><b>${esc(S.me||'')}</b>` : S.mode==='supa' ? `<b>${esc(nm(S.me))}</b><br>${S.canAdmin ? 'Socio' : 'Equipo comercial'} · <a href="#" onclick="salir();return false" style="color:#cbc6bd">Salir</a>` : `Base compartida<br><b>${S.canAdmin ? 'Rol: socio (aprueba)' : 'Rol: equipo comercial'}</b>`);
   const v = $('#view');
   // preservar foco en editor/chat
@@ -474,6 +479,9 @@ function doRender(){
   if (S.route === 'tablero') v.innerHTML = viewTablero();
   else if (S.route === 'presupuestos') v.innerHTML = viewLista();
   else if (S.route === 'clientes') v.innerHTML = viewClientes();
+  else if (S.route === 'caja') v.innerHTML = viewCaja();
+  else if (S.route === 'contabilidad') v.innerHTML = viewContabilidad();
+  else if (S.route === 'menu') v.innerHTML = viewMenu();
   else if (S.route === 'nuevo') { if (!S.draft) newDraft(); v.innerHTML = viewEditor(); v.dataset.sig = draftSig(); renderSummary(); }
   else if (S.route === 'asistente') { v.innerHTML = viewChat(); chatBoot(); }
   else if (S.route === 'catalogo') v.innerHTML = viewCatalogo();
@@ -962,7 +970,7 @@ function viewParams(ro){
     ${S.mode==='mem' ? `<div class="row" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);justify-content:space-between"><span class="small muted">Prueba local: podés empezar de cero cuando quieras.</span><button class="btn sm bad" onclick="resetPrueba()">Borrar datos de prueba</button></div>` : ''}
   </div>`;
 }
-async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; persist(); render(); toast('Datos borrados'); }
+async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.fondos = clone(DEMO_FONDOS); persist(); render(); toast('Datos borrados'); }
 async function saveParams(){
   const keys = ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','margenObjetivo','margenMinimo','descuentoMax','redondeo','validezDias','anticipoPct','seguimientoDias','ivaPct'];
   const d = {}; keys.forEach(k => { const v = $('#pp-'+k).value; d[k] = v === '' ? null : pf(v); });
@@ -1224,7 +1232,7 @@ async function iniciarSesion(session){
   ]);
   clearTimeout(timer);
   if (d.error) { banner('No se pudieron leer los datos: ' + esc(d.error.message)); return; }
-  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = []; S.clientes = [];
+  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = [];
   d.data.forEach(aplicarDoc);
   S.perfiles = pf.data || []; aplicarPerfiles();
   S.facturas = fc.data || [];
@@ -1676,6 +1684,675 @@ async function importarClientes(){
   toast(n ? `${n} presupuesto${n > 1 ? 's' : ''} vinculado${n > 1 ? 's' : ''} a clientes` : 'No se pudo agendar (¿corriste el SQL de clientes?)');
 }
 function elegirClienteEnBorrador(id){ const c = S.clientes.find(x => x.id === id); if (!c) return; S.draft.cliente = {clienteId: c.id, nombre: c.nombre || '', empresa: c.empresa || '', telefono: c.telefono || '', email: c.email || '', tipoDoc: c.tipoDoc || 'ruc', documento: c.documento || '', razonSocial: c.razonSocial || ''}; $('#view').dataset.sig = ''; }
+
+
+/* =====================================================================
+   FINANZAS · motor contable (se calcula a partir de los documentos)
+   ===================================================================== */
+const PLAN_BASE = [
+  ['1','ACTIVO'],['1.1','Activo corriente'],['1.1.01','Caja'],['1.1.02','Bancos'],['1.1.03','Deudores por ventas (clientes)'],['1.1.04','IVA crédito fiscal'],['1.1.05','Inventario de materiales'],
+  ['1.2','Activo no corriente'],['1.2.01','Máquinas, herramientas y muebles'],['1.2.02','(-) Depreciación acumulada'],
+  ['2','PASIVO'],['2.1','Pasivo corriente'],['2.1.01','Proveedores'],['2.1.02','IVA débito fiscal'],['2.1.03','Sueldos y cargas sociales a pagar'],['2.1.04','Impuestos a pagar'],
+  ['2.2','Pasivo no corriente'],['2.2.01','Préstamos'],
+  ['3','PATRIMONIO'],['3.1.01','Capital aportado'],['3.1.02','Resultados acumulados'],['3.1.03','Retiros de socios'],
+  ['4','INGRESOS'],['4.1.01','Ventas'],['4.1.02','Otros ingresos'],
+  ['5','COSTOS'],['5.1.01','Costo de materiales vendidos'],['5.1.02','Mano de obra de producción'],['5.1.03','Diferencias de inventario'],
+  ['6','GASTOS'],['6.1','Gastos operativos'],['6.1.01','Sueldos y cargas sociales'],['6.1.02','Alquiler'],['6.1.03','Energía y servicios'],['6.1.04','Mantenimiento y herramientas'],
+  ['6.1.05','Fletes y transporte'],['6.1.06','Marketing y publicidad'],['6.1.07','Honorarios profesionales'],['6.1.08','Gastos bancarios'],['6.1.09','Otros gastos operativos'],
+  ['6.2.01','Depreciaciones'],['6.3.01','Intereses y gastos financieros'],['6.4.01','Impuesto a la renta'],
+].map(([codigo, nombre]) => ({codigo, nombre, base:true}));
+const CTA = {caja:'1.1.01', banco:'1.1.02', deudores:'1.1.03', ivaCF:'1.1.04', inventario:'1.1.05', activoFijo:'1.2.01', depAcum:'1.2.02',
+  proveedores:'2.1.01', ivaDF:'2.1.02', prestamos:'2.2.01', capital:'3.1.01', resAcum:'3.1.02', retiros:'3.1.03', ventas:'4.1.01', otrosIng:'4.1.02',
+  cmv:'5.1.01', difInv:'5.1.03'};
+const esImputable = c => c.split('.').length === 3;
+function planCuentas(){
+  const m = new Map(PLAN_BASE.map(c => [c.codigo, {...c}]));
+  (S.plan || []).forEach(d => { const k = d.codigo || d.id; m.set(k, {...(m.get(k) || {}), ...d, codigo:k}); });
+  return [...m.values()].filter(c => !c.inactiva).sort((a,b) => a.codigo.localeCompare(b.codigo, undefined, {numeric:true}));
+}
+function nombreCta(cod){ const c = planCuentas().find(x => x.codigo === cod); return c ? c.nombre : cod; }
+function claseCta(cod){
+  if (cod.startsWith('1')) return 'activo'; if (cod.startsWith('2')) return 'pasivo'; if (cod.startsWith('3')) return 'patrimonio';
+  if (cod.startsWith('4')) return 'ingreso'; if (cod.startsWith('5')) return 'costo';
+  if (cod.startsWith('6.2')) return 'depreciacion'; if (cod.startsWith('6.3')) return 'financiero'; if (cod.startsWith('6.4')) return 'impuesto';
+  return 'gasto';
+}
+const hoyISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*6e4).toISOString().slice(0,10); };
+const mesDe = f => String(f || '').slice(0,7);
+const nombreMes = ym => { const [y,m] = ym.split('-'); return ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][+m-1] + ' ' + y.slice(2); };
+function ivaSplit(importe, tasa){ importe = Math.round(+importe || 0); tasa = +tasa || 0; if (!tasa) return {neto:importe, iva:0}; const neto = Math.round(importe * 100 / (100 + tasa)); return {neto, iva: importe - neto}; }
+const fondoCta = f => f ? (f.cuenta || (f.tipo === 'caja' ? CTA.caja : CTA.banco)) : CTA.caja;
+
+// --- ventas contables = facturas registradas (manuales) o aprobadas por SIFEN ---
+function ventasContables(){
+  const out = [];
+  S.presupuestos.forEach(p => (p.facturasManual || []).filter(f => f.estado === 'emitida').forEach(f =>
+    out.push({id:'fm-' + f.id, fecha:f.fecha, presId:p.id, presNum:p.numero, clienteId:p.cliente && p.cliente.clienteId, cliente:(f.receptor && f.receptor.name) || (p.cliente && p.cliente.nombre), numero:f.numero, items:f.items || [], total:+f.total})));
+  (S.facturas || []).filter(f => ['approved','approved_obs'].includes(f.estado)).forEach(f => {
+    const p = S.presupuestos.find(x => x.id === f.presupuesto_id);
+    out.push({id:'fs-' + f.id, fecha:String(f.created_at || '').slice(0,10), presId:f.presupuesto_id, presNum:p && p.numero, clienteId:p && p.cliente && p.cliente.clienteId, cliente:f.receptor && f.receptor.name, numero:f.numero, items:f.items || [], total:+f.total});
+  });
+  return out;
+}
+function splitVenta(v){ // IVA por tasa, escalado al total facturado
+  const suma = v.items.reduce((s,i) => s + (+i.importe || 0), 0) || v.total;
+  const k = suma ? v.total / suma : 1; let neto = 0, iva = 0;
+  (v.items.length ? v.items : [{importe:v.total, tasa_iva:10}]).forEach(i => { const r = ivaSplit((+i.importe || 0) * k, +(i.tasa_iva ?? i.tasaIva ?? 10)); neto += r.neto; iva += r.iva; });
+  const dif = v.total - neto - iva; neto += dif; // redondeo
+  return {neto, iva};
+}
+// --- consumo de materiales al confirmar la venta ---
+function consumos(){
+  const out = [];
+  S.presupuestos.filter(p => p.estado === 'venta').forEach(p => {
+    const ver = (p.versiones || [])[(p.versiones || []).length - 1]; if (!ver) return;
+    const desp = 1 + (+(ver.params && ver.params.desperdicioPct) || 0) / 100;
+    const fecha = String(p.cerradoAt || p.actualizado || p.creado).slice(0,10);
+    (ver.items || []).forEach(it => (it.lineas || []).forEach(l => { if (l.materialId && +l.cant) out.push({presId:p.id, presNum:p.numero, fecha, materialId:l.materialId, cant:(+l.cant) * (+it.cantidad || 0) * desp}); }));
+  });
+  return out;
+}
+function motorStock(){
+  const ev = [];
+  (S.compras || []).filter(c => !c.anulada).forEach(c => (c.items || []).forEach((i, k) => { if (i.tipo === 'material' && i.materialId && +i.cantidad > 0) ev.push({fecha:c.fecha, o:0, tipo:'in', materialId:i.materialId, cant:+i.cantidad, costo:ivaSplit(i.importe, i.tasaIva).neto, ref:'cp:' + c.id}); }));
+  consumos().forEach(c => ev.push({...c, o:1, tipo:'out', ref:'pr:' + c.presId}));
+  (S.stockajustes || []).filter(a => !a.anulado).forEach(a => ev.push({fecha:a.fecha, o:2, tipo:'aj', materialId:a.materialId, cant:+a.cantidad, ref:'sa:' + a.id}));
+  ev.sort((a,b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.o - b.o));
+  const st = {}, costoRef = {};
+  ev.forEach(e => {
+    const m = matById(e.materialId) || {};
+    const s = st[e.materialId] || (st[e.materialId] = {cant:0, valor:0, avg:+m.precio || 0, negativo:false, entradas:0, salidas:0});
+    if (e.tipo === 'in') { s.cant += e.cant; s.valor += e.costo; s.entradas += e.cant; if (s.cant > 1e-9) s.avg = s.valor / s.cant; }
+    else { const q = e.tipo === 'aj' ? -e.cant : e.cant; const c = q * s.avg; s.cant -= q; s.valor -= c; if (e.tipo === 'out') s.salidas += q;
+      if (s.cant < -1e-6) s.negativo = true; if (Math.abs(s.cant) < 1e-9) { s.cant = 0; s.valor = 0; }
+      costoRef[e.ref] = (costoRef[e.ref] || 0) + c; }
+  });
+  return {st, costoRef};
+}
+function saldoCompra(c){ // total - pagos efectivamente realizados
+  const pagado = (S.ordenes || []).filter(o => o.destino && o.destino.tipo === 'compra' && o.destino.compraId === c.id && o.estado === 'pagada').reduce((s,o) => s + (+o.monto || 0), 0);
+  return {total:+c.total || 0, pagado, saldo:(+c.total || 0) - pagado};
+}
+
+function libroDiario(){
+  const A = []; const add = (fecha, glosa, origen, ref, lineas) => {
+    lineas = lineas.filter(l => Math.round(l.debe || 0) || Math.round(l.haber || 0)).map(l => ({cta:l.cta, debe:Math.round(l.debe || 0), haber:Math.round(l.haber || 0)}));
+    if (lineas.length) A.push({id:origen + ':' + ref, fecha, glosa, origen, ref, lineas});
+  };
+  const {costoRef} = motorStock();
+  // saldos iniciales de las cuentas de dinero
+  (S.fondos || []).forEach(f => { if (+f.saldoInicial) add(f.fechaSaldo || '2026-01-01', `Saldo inicial · ${f.nombre}`, 'apertura', f.id, [{cta:fondoCta(f), debe:+f.saldoInicial}, {cta:CTA.capital, haber:+f.saldoInicial}]); });
+  // ventas
+  ventasContables().forEach(v => { const {neto, iva} = splitVenta(v); add(v.fecha, `Factura ${v.numero} · ${v.cliente || ''} (${v.presNum || ''})`, 'venta', v.id, [{cta:CTA.deudores, debe:v.total}, {cta:CTA.ventas, haber:neto}, {cta:CTA.ivaDF, haber:iva}]); });
+  // costo de materiales vendidos
+  const porPres = {}; consumos().forEach(c => { porPres[c.presId] = porPres[c.presId] || c; });
+  Object.values(porPres).forEach(c => { const v = costoRef['pr:' + c.presId] || 0; add(c.fecha, `Costo de materiales · ${c.presNum}`, 'cmv', c.presId, [{cta:CTA.cmv, debe:v}, {cta:CTA.inventario, haber:v}]); });
+  // compras
+  (S.compras || []).filter(c => !c.anulada).forEach(c => {
+    const L = []; let ivaT = 0;
+    (c.items || []).forEach(i => { const {neto, iva} = ivaSplit(i.importe, i.tasaIva); ivaT += iva;
+      const cta = i.tipo === 'material' ? CTA.inventario : i.tipo === 'activo' ? (i.cuenta || CTA.activoFijo) : (i.cuenta || '6.1.09');
+      L.push({cta, debe:neto}); });
+    L.push({cta:CTA.ivaCF, debe:ivaT}); L.push({cta:CTA.proveedores, haber:+c.total});
+    add(c.fecha, `Compra ${c.numeroFactura || ''} · ${provNombre(c.proveedorId)}`, 'compra', c.id, L);
+  });
+  // movimientos de dinero
+  (S.movimientos || []).filter(m => !m.anulado).forEach(m => {
+    const f = (S.fondos || []).find(x => x.id === m.fondoId); const cf = fondoCta(f); const monto = +m.monto;
+    if (m.tipo === 'ingreso') {
+      const contra = m.categoria === 'cobro' ? CTA.deudores : m.categoria === 'aporte' ? CTA.capital : m.categoria === 'prestamo' ? CTA.prestamos : (m.cuenta || CTA.otrosIng);
+      add(m.fecha, `${CAT_ING[m.categoria] || 'Ingreso'} · ${m.concepto || ''}`, 'ingreso', m.id, [{cta:cf, debe:monto}, {cta:contra, haber:monto}]);
+    } else if (m.tipo === 'transferencia') {
+      const fd = (S.fondos || []).find(x => x.id === m.fondoDestinoId);
+      add(m.fecha, `Transferencia ${f ? f.nombre : ''} → ${fd ? fd.nombre : ''}`, 'transferencia', m.id, [{cta:fondoCta(fd), debe:monto}, {cta:cf, haber:monto}]);
+    } else if (m.tipo === 'egreso') {
+      const op = (S.ordenes || []).find(o => o.id === m.opId) || {};
+      const debe = op.destino && op.destino.tipo === 'compra' ? CTA.proveedores : ((op.destino && op.destino.cuenta) || '6.1.09');
+      add(m.fecha, `Pago ${m.opId || ''} · ${op.beneficiario || ''} — ${op.concepto || ''}`, 'pago', m.id, [{cta:debe, debe:monto}, {cta:cf, haber:monto}]);
+    }
+  });
+  // ajustes de stock
+  (S.stockajustes || []).filter(a => !a.anulado).forEach(a => { const v = -(costoRef['sa:' + a.id] || 0); // positivo = entra stock
+    add(a.fecha, `Ajuste de inventario · ${(matById(a.materialId) || {}).nombre || ''} (${a.motivo || ''})`, 'ajuste', a.id, v >= 0 ? [{cta:CTA.inventario, debe:v}, {cta:CTA.difInv, haber:v}] : [{cta:CTA.difInv, debe:-v}, {cta:CTA.inventario, haber:-v}]); });
+  // asientos manuales
+  (S.asientos || []).filter(a => !a.anulado).forEach(a => add(a.fecha, a.glosa || 'Asiento manual', 'manual', a.id, a.lineas || []));
+  A.sort((a,b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+  A.forEach((a, i) => a.n = i + 1);
+  return A;
+}
+function saldos(A, desde, hasta){ // {cta: debe-haber}
+  const s = {}; A.forEach(a => { if ((desde && a.fecha < desde) || (hasta && a.fecha > hasta)) return; a.lineas.forEach(l => { s[l.cta] = (s[l.cta] || 0) + l.debe - l.haber; }); }); return s;
+}
+const finMes = ym => { const [y,m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0,10); };
+function resultadoPeriodo(A, desde, hasta){
+  const s = saldos(A, desde, hasta); const r = {ventas:0, otrosIng:0, costo:0, gastos:0, dep:0, fin:0, imp:0, det:{}};
+  Object.entries(s).forEach(([c, v]) => { const k = claseCta(c);
+    if (k === 'ingreso') { if (c === CTA.ventas) r.ventas += -v; else r.otrosIng += -v; }
+    else if (k === 'costo') r.costo += v; else if (k === 'gasto') r.gastos += v; else if (k === 'depreciacion') r.dep += v; else if (k === 'financiero') r.fin += v; else if (k === 'impuesto') r.imp += v;
+    if (['ingreso','costo','gasto','depreciacion','financiero','impuesto'].includes(k)) r.det[c] = (k === 'ingreso' ? -v : v); });
+  r.ingresos = r.ventas + r.otrosIng; r.margenBruto = r.ingresos - r.costo; r.ebitda = r.margenBruto - r.gastos; r.ebit = r.ebitda - r.dep; r.neto = r.ebit - r.fin - r.imp;
+  return r;
+}
+function mesesConDatos(A){ const ms = new Set(A.map(a => mesDe(a.fecha))); ms.add(mesDe(hoyISO())); return [...ms].filter(Boolean).sort(); }
+function tir(flujos){ // flujos mensuales, devuelve tasa mensual o null
+  if (!flujos.some(x => x < 0) || !flujos.some(x => x > 0)) return null;
+  const vpn = r => flujos.reduce((s, f, i) => s + f / Math.pow(1 + r, i), 0);
+  let lo = -0.99, hi = 10, flo = vpn(lo), fhi = vpn(hi);
+  if (flo * fhi > 0) return null;
+  for (let i = 0; i < 200; i++) { const mid = (lo + hi) / 2, fm = vpn(mid); if (Math.abs(fm) < 1e-6) return mid; if (flo * fm < 0) { hi = mid; fhi = fm; } else { lo = mid; flo = fm; } }
+  return (lo + hi) / 2;
+}
+const provNombre = id => ((S.proveedores || []).find(p => p.id === id) || {}).nombre || '—';
+const CAT_ING = {cobro:'Cobro a cliente', aporte:'Aporte de socios', prestamo:'Préstamo recibido', otro:'Otro ingreso'};
+const fondoSaldo = (f, hasta) => {
+  let s = (!hasta || (f.fechaSaldo || '') <= hasta) ? +f.saldoInicial || 0 : 0;
+  (S.movimientos || []).filter(m => !m.anulado && (!hasta || m.fecha <= hasta)).forEach(m => {
+    if (m.fondoId === f.id) s += m.tipo === 'ingreso' ? +m.monto : -m.monto;
+    if (m.tipo === 'transferencia' && m.fondoDestinoId === f.id) s += +m.monto; });
+  return s;
+};
+function cobranzas(){ // por presupuesto: facturado vs cobrado
+  const fact = {}; ventasContables().forEach(v => { fact[v.presId] = (fact[v.presId] || 0) + v.total; });
+  const cob = {}; (S.movimientos || []).filter(m => !m.anulado && m.tipo === 'ingreso' && m.categoria === 'cobro' && m.presupuestoId).forEach(m => { cob[m.presupuestoId] = (cob[m.presupuestoId] || 0) + +m.monto; });
+  const ids = new Set([...Object.keys(fact), ...Object.keys(cob), ...S.presupuestos.filter(p => p.estado === 'venta').map(p => p.id)]);
+  return [...ids].map(id => { const p = S.presupuestos.find(x => x.id === id) || {}; const f = fact[id] || 0, c = cob[id] || 0;
+    return {id, numero:p.numero || id, cliente:(p.cliente && p.cliente.nombre) || '', venta:+p.precioFinal || 0, facturado:f, cobrado:c, saldo:(f || +p.precioFinal || 0) - c}; })
+    .sort((a,b) => b.saldo - a.saldo);
+}
+
+/* =====================================================================
+   CAJA (flujo de dinero)
+   ===================================================================== */
+S.cj = {tab:'resumen', fondo:'', mes:'', est:'abiertas'};
+function viewCaja(){
+  const tabs = [['resumen','Resumen'],['mov','Movimientos'],['op','Órdenes de pago'],['cxc','Por cobrar'],['fondos','Cuentas']];
+  const pend = (S.ordenes || []).filter(o => o.estado === 'pendiente').length;
+  let body = '';
+  if (S.cj.tab === 'resumen') body = cajaResumen();
+  if (S.cj.tab === 'mov') body = cajaMovimientos();
+  if (S.cj.tab === 'op') body = cajaOrdenes();
+  if (S.cj.tab === 'cxc') body = cajaCxC();
+  if (S.cj.tab === 'fondos') body = cajaFondos();
+  return `<div class="top"><div><h1>Caja</h1><p>Cobros, pagos y movimientos de cada cuenta bancaria y caja física. Los pagos salen solo con orden de pago aprobada.</p></div>
+    <div class="row"><button class="btn" onclick="nuevoIngreso('cobro')">+ Cobro</button><button class="btn pri" onclick="nuevaOP()">+ Orden de pago</button></div></div>
+  <div class="seg" style="margin-bottom:16px">${tabs.map(([k,n]) => `<button class="${S.cj.tab===k?'on':''}" onclick="S.cj.tab='${k}';render()">${n}${k==='op' && pend ? ` <span class="tag" style="background:var(--warn-soft);color:#9a6212;padding:0 6px">${pend}</span>` : ''}</button>`).join('')}</div>
+  ${loadingOr(body)}`;
+}
+function cajaResumen(){
+  const F = (S.fondos || []).filter(f => f.activo !== false);
+  const total = F.reduce((s,f) => s + fondoSaldo(f), 0);
+  const cxc = cobranzas().reduce((s,c) => s + Math.max(c.saldo, 0), 0);
+  const porPagarOP = (S.ordenes || []).filter(o => o.estado === 'aprobada').reduce((s,o) => s + +o.monto, 0);
+  const pendAprob = (S.ordenes || []).filter(o => o.estado === 'pendiente');
+  const cxp = (S.compras || []).filter(c => !c.anulada).reduce((s,c) => s + Math.max(saldoCompra(c).saldo, 0), 0);
+  const meses = {}; (S.movimientos || []).filter(m => !m.anulado && m.tipo !== 'transferencia').forEach(m => { const k = mesDe(m.fecha); meses[k] = meses[k] || {in:0, out:0}; if (m.tipo === 'ingreso') meses[k].in += +m.monto; else meses[k].out += +m.monto; });
+  const ks = Object.keys(meses).sort().slice(-6); const mx = Math.max(1, ...ks.map(k => Math.max(meses[k].in, meses[k].out)));
+  return `<div class="kpis">
+    <div class="card kpi"><div class="l">Disponible</div><div class="v num">${gsM(total)}</div><div class="s">${F.length} cuentas</div></div>
+    <div class="card kpi"><div class="l">Por cobrar</div><div class="v num">${gsM(cxc)}</div><div class="s">Clientes con saldo</div></div>
+    <div class="card kpi"><div class="l">Por pagar</div><div class="v num">${gsM(cxp)}</div><div class="s">Compras a proveedores</div></div>
+    <div class="card kpi"><div class="l">OP aprobadas sin pagar</div><div class="v num">${gsM(porPagarOP)}</div><div class="s">${pendAprob.length} esperando aprobación</div></div></div>
+  <div class="dash">
+    <div class="card pad"><h3 style="margin-bottom:12px">Saldos por cuenta</h3>
+      ${F.length ? `<table class="t"><tbody>${F.map(f => `<tr><td><b>${esc(f.nombre)}</b><div class="small muted">${f.tipo === 'caja' ? 'Caja física' : 'Banco'}${f.numero ? ' · ' + esc(f.numero) : ''}</div></td><td class="r num"><b>${gs(fondoSaldo(f))}</b></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sin cuentas. Creálas en la pestaña Cuentas.</div>'}</div>
+    <div class="card pad"><h3 style="margin-bottom:4px">Ingresos y egresos por mes</h3><p class="small muted" style="margin:0 0 12px">Barra oscura: ingresos · naranja: egresos (sin transferencias)</p>
+      ${ks.length ? `<div class="bars">${ks.map(k => `<div class="bar" title="${nombreMes(k)} · ingresos ${gs(meses[k].in)}"><span>${nombreMes(k)}</span><div class="tr"><div class="fl" style="width:${meses[k].in/mx*100}%"></div></div><span class="v">${gsM(meses[k].in)}</span></div>
+        <div class="bar" title="${nombreMes(k)} · egresos ${gs(meses[k].out)}"><span></span><div class="tr"><div class="fl acc" style="width:${meses[k].out/mx*100}%"></div></div><span class="v">${gsM(meses[k].out)}</span></div>`).join('')}</div>` : '<div class="empty">Todavía no hay movimientos.</div>'}</div>
+  </div>
+  ${pendAprob.length ? `<div class="card pad" style="margin-top:16px"><h3 style="margin-bottom:10px">Órdenes de pago esperando aprobación</h3>${tablaOP(pendAprob)}</div>` : ''}`;
+}
+function cajaMovimientos(){
+  const F = S.fondos || [];
+  const meses = [...new Set((S.movimientos || []).map(m => mesDe(m.fecha)))].sort().reverse();
+  const L = (S.movimientos || []).filter(m => (!S.cj.fondo || m.fondoId === S.cj.fondo || m.fondoDestinoId === S.cj.fondo) && (!S.cj.mes || mesDe(m.fecha) === S.cj.mes))
+    .sort((a,b) => (b.fecha + (b.at || '')).localeCompare(a.fecha + (a.at || '')));
+  const nf = id => (F.find(f => f.id === id) || {}).nombre || '—';
+  return `<div class="row" style="margin-bottom:12px">
+      <select class="in" style="width:auto" onchange="S.cj.fondo=this.value;render()"><option value="">Todas las cuentas</option>${F.map(f => `<option value="${f.id}" ${S.cj.fondo===f.id?'selected':''}>${esc(f.nombre)}</option>`).join('')}</select>
+      <select class="in" style="width:auto" onchange="S.cj.mes=this.value;render()"><option value="">Todos los meses</option>${meses.map(m => `<option value="${m}" ${S.cj.mes===m?'selected':''}>${nombreMes(m)}</option>`).join('')}</select>
+      <span class="grow"></span><button class="btn sm" onclick="nuevoIngreso('aporte')">+ Otro ingreso / aporte</button><button class="btn sm" onclick="nuevaTransferencia()">⇄ Transferencia</button></div>
+    <div class="card">${L.length ? `<table class="t"><thead><tr><th>Fecha</th><th>Detalle</th><th class="hide-m">Cuenta</th><th class="r">Ingreso</th><th class="r">Egreso</th>${S.canAdmin ? '<th></th>' : ''}</tr></thead><tbody>
+      ${L.map(m => { const anul = m.anulado ? 'style="opacity:.45;text-decoration:line-through"' : '';
+        const det = m.tipo === 'egreso' ? `Pago ${esc(m.opId)} · ${esc(((S.ordenes||[]).find(o => o.id === m.opId) || {}).beneficiario || '')}` : m.tipo === 'transferencia' ? `Transferencia → ${esc(nf(m.fondoDestinoId))}` : `${esc(CAT_ING[m.categoria] || 'Ingreso')}${m.presupuestoId ? ' · ' + esc((S.presupuestos.find(p => p.id === m.presupuestoId) || {}).numero || '') : ''}`;
+        const ing = m.tipo === 'ingreso' || (m.tipo === 'transferencia' && S.cj.fondo && m.fondoDestinoId === S.cj.fondo);
+        return `<tr ${anul}><td class="small">${fDate(m.fecha)}</td><td>${det}<div class="small muted">${esc(m.concepto || '')}${m.comprobante ? ' · Comp. ' + esc(m.comprobante) : ''}${m.anulado ? ' · ANULADO: ' + esc(m.motivoAnulacion || '') : ''}</div></td>
+          <td class="hide-m small">${esc(nf(m.fondoId))}</td><td class="r num">${ing ? gs(m.monto) : ''}</td><td class="r num">${!ing ? gs(m.monto) : ''}</td>
+          ${S.canAdmin ? `<td class="r">${m.anulado ? '' : `<button class="btn sm ghost" onclick="anularMov('${esc(m.id)}')">Anular</button>`}</td>` : ''}</tr>`; }).join('')}
+    </tbody></table>` : '<div class="empty"><b>Sin movimientos</b>Registrá un cobro, un ingreso o pagá una orden aprobada.</div>'}</div>`;
+}
+function tablaOP(L){
+  return `<table class="t"><thead><tr><th>OP</th><th>Beneficiario / concepto</th><th class="r">Monto</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${L.map(o => `<tr><td><b>${esc(o.id)}</b><div class="small muted">${fDate(o.fecha)} · ${esc(nm(o.creadoPor))}</div></td>
+    <td>${esc(o.beneficiario)}<div class="small muted">${esc(o.concepto || '')} · ${o.destino && o.destino.tipo === 'compra' ? 'Paga compra registrada' : esc(nombreCta(o.destino && o.destino.cuenta))}</div></td>
+    <td class="r num"><b>${gs(o.monto)}</b></td><td>${opTag(o)}</td>
+    <td class="r" style="white-space:nowrap">${o.estado === 'pendiente' && S.canAdmin ? `<button class="btn sm ok" onclick="decidirOP('${esc(o.id)}','aprobada')">Aprobar</button><button class="btn sm bad" onclick="decidirOP('${esc(o.id)}','rechazada')">Rechazar</button>` : ''}
+      ${o.estado === 'aprobada' ? `<button class="btn sm pri" onclick="pagarOP('${esc(o.id)}')">Pagar</button>` : ''}
+      ${(o.estado === 'pendiente' && (S.canAdmin || o.creadoPor === S.me)) || (o.estado === 'aprobada' && S.canAdmin) ? `<button class="btn sm ghost" onclick="decidirOP('${esc(o.id)}','anulada')">Anular</button>` : ''}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+const OPEST = {pendiente:['Pendiente de aprobación','#9a6212','var(--warn-soft)'], aprobada:['Aprobada · por pagar','#1c6ed4','var(--info-soft)'], pagada:['Pagada','#2b8a3e','var(--ok-soft)'], rechazada:['Rechazada','#c92a2a','var(--bad-soft)'], anulada:['Anulada','#55534f','var(--neutral-soft)']};
+const opTag = o => { const [n,c,b] = OPEST[o.estado] || [o.estado,'#555','#eee']; return `<span class="tag" style="background:${b};color:${c}"><span class="dot"></span>${n}</span>${o.aprobadaPor ? `<div class="small muted">${o.estado === 'rechazada' ? 'Rechazó' : 'Aprobó'} ${esc(nm(o.aprobadaPor))}</div>` : ''}`; };
+function cajaOrdenes(){
+  const f = S.cj.est; const L = (S.ordenes || []).filter(o => f === 'todas' || (f === 'abiertas' ? ['pendiente','aprobada'].includes(o.estado) : o.estado === f)).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+  return `<div class="row" style="margin-bottom:12px"><div class="seg">${[['abiertas','Abiertas'],['pagada','Pagadas'],['rechazada','Rechazadas'],['todas','Todas']].map(([k,n]) => `<button class="${f===k?'on':''}" onclick="S.cj.est='${k}';render()">${n}</button>`).join('')}</div></div>
+    <div class="card">${L.length ? tablaOP(L) : '<div class="empty"><b>Sin órdenes</b>Cualquier usuario puede crear una orden de pago; un socio la aprueba.</div>'}</div>`;
+}
+function cajaCxC(){
+  const L = cobranzas().filter(c => Math.abs(c.saldo) > 0 || c.cobrado);
+  return `<div class="card">${L.length ? `<table class="t"><thead><tr><th>Presupuesto</th><th class="r hide-m">Facturado</th><th class="r">Cobrado</th><th class="r">Saldo</th><th></th></tr></thead><tbody>
+    ${L.map(c => `<tr><td><b>${esc(c.numero)}</b><div class="small muted">${esc(c.cliente)}${!c.facturado ? ' · sin factura (saldo según presupuesto)' : ''}</div></td><td class="r num hide-m">${gs(c.facturado)}</td><td class="r num">${gs(c.cobrado)}</td>
+      <td class="r num"><b style="color:${c.saldo > 0 ? 'var(--ink)' : 'var(--ok)'}">${c.saldo > 0 ? gs(c.saldo) : c.saldo < 0 ? 'Anticipo ' + gs(-c.saldo) : 'Saldado'}</b></td>
+      <td class="r">${c.saldo > 0 ? `<button class="btn sm" onclick="nuevoIngreso('cobro','${esc(c.id)}')">Cobrar</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><b>Nada por cobrar</b>Las ventas confirmadas y facturadas aparecen acá.</div>'}</div>`;
+}
+function cajaFondos(){
+  const F = S.fondos || [];
+  return `<div class="card"><div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Cuentas de dinero</h2><p class="small muted" style="margin:2px 0 0">Cuentas bancarias y cajas físicas. ${S.canAdmin ? '' : 'Solo los socios pueden crearlas o editarlas.'}</p></div>${S.canAdmin ? `<button class="btn pri sm" onclick="editarFondo()">+ Cuenta</button>` : ''}</div>
+    ${F.length ? `<table class="t"><thead><tr><th>Cuenta</th><th class="hide-m">Cuenta contable</th><th class="r">Saldo inicial</th><th class="r">Saldo actual</th>${S.canAdmin ? '<th></th>' : ''}</tr></thead><tbody>
+    ${F.map(f => `<tr ${f.activo === false ? 'style="opacity:.5"' : ''}><td><b>${esc(f.nombre)}</b><div class="small muted">${f.tipo === 'caja' ? 'Caja física' : 'Banco'}${f.banco ? ' · ' + esc(f.banco) : ''}${f.numero ? ' · ' + esc(f.numero) : ''}</div></td>
+      <td class="hide-m small">${esc(fondoCta(f))} ${esc(nombreCta(fondoCta(f)))}</td><td class="r num">${gs(f.saldoInicial)}<div class="small muted">${fDate(f.fechaSaldo)}</div></td><td class="r num"><b>${gs(fondoSaldo(f))}</b></td>
+      ${S.canAdmin ? `<td class="r"><button class="btn sm ghost" onclick="editarFondo('${esc(f.id)}')">Editar</button></td>` : ''}</tr>`).join('')}</tbody></table>` : '<div class="empty">Sin cuentas.</div>'}</div>`;
+}
+async function editarFondo(id){
+  const f = id ? (S.fondos || []).find(x => x.id === id) : {tipo:'banco', saldoInicial:0, fechaSaldo:hoyISO(), activo:true};
+  const ctas = planCuentas().filter(c => c.codigo.startsWith('1.1') && esImputable(c.codigo));
+  const r = await dialog(id ? 'Editar cuenta' : 'Nueva cuenta de dinero', `<div style="display:flex;flex-direction:column;gap:10px">
+    <div class="grid2"><label class="f">Nombre *<input class="in" id="fo-n" value="${esc(f.nombre || '')}" placeholder="Ej. Banco Itaú cta. cte."></label>
+    <label class="f">Tipo<select class="in" id="fo-t"><option value="banco" ${f.tipo!=='caja'?'selected':''}>Banco</option><option value="caja" ${f.tipo==='caja'?'selected':''}>Caja física</option></select></label></div>
+    <div class="grid2"><label class="f">Banco<input class="in" id="fo-b" value="${esc(f.banco || '')}"></label><label class="f">N° de cuenta (referencia)<input class="in" id="fo-nu" value="${esc(f.numero || '')}" placeholder="Ej. terminada en 4417"></label></div>
+    <div class="grid2"><label class="f">Saldo inicial ₲<input class="in r" type="number" id="fo-s" value="${esc(f.saldoInicial || 0)}"></label><label class="f">Fecha del saldo<input class="in" type="date" id="fo-fe" value="${esc(f.fechaSaldo || hoyISO())}"></label></div>
+    <label class="f">Cuenta contable<select class="in" id="fo-c">${ctas.map(c => `<option value="${c.codigo}" ${fondoCta(f)===c.codigo?'selected':''}>${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select></label>
+    ${id ? `<label class="row small"><input type="checkbox" id="fo-a" ${f.activo !== false ? 'checked' : ''}> Activa</label>` : ''}</div>`, 'Guardar', () => {
+      const n = $('#fo-n').value.trim(); if (!n) { toast('Poné un nombre'); return false; }
+      return {nombre:n, tipo:$('#fo-t').value, banco:$('#fo-b').value.trim(), numero:$('#fo-nu').value.trim(), saldoInicial:Math.round(pf($('#fo-s').value)), fechaSaldo:$('#fo-fe').value, cuenta:$('#fo-c').value, activo: id ? $('#fo-a').checked : true}; });
+  if (r) await put('fondos', id || 'f-' + uid(), {...(id ? (({id:_, ...x}) => x)(f) : {}), ...r, actualizado:now()});
+}
+const opcionesFondo = sel => (S.fondos || []).filter(f => f.activo !== false).map(f => `<option value="${f.id}" ${sel===f.id?'selected':''}>${esc(f.nombre)} · ${gs(fondoSaldo(f))}</option>`).join('');
+async function nuevoIngreso(cat, presId){
+  if (!(S.fondos || []).length) { toast('Primero creá una cuenta de dinero'); return; }
+  const cxc = cobranzas().filter(c => c.saldo > 0);
+  const ingCtas = planCuentas().filter(c => c.codigo.startsWith('4') && esImputable(c.codigo) && c.codigo !== CTA.ventas);
+  const r = await dialog(cat === 'cobro' ? 'Registrar cobro' : 'Registrar ingreso', `<div style="display:flex;flex-direction:column;gap:10px">
+    <label class="f">Tipo<select class="in" id="in-cat" onchange="document.getElementById('in-cob').style.display=this.value==='cobro'?'':'none';document.getElementById('in-otr').style.display=this.value==='otro'?'':'none'">${Object.entries(CAT_ING).map(([k,n]) => `<option value="${k}" ${cat===k?'selected':''}>${n}</option>`).join('')}</select></label>
+    <div id="in-cob" ${cat==='cobro'?'':'style="display:none"'}><label class="f">Venta que se cobra<select class="in" id="in-p"><option value="">— Elegir —</option>${cxc.map(c => `<option value="${esc(c.id)}" data-s="${c.saldo}" ${presId===c.id?'selected':''}>${esc(c.numero)} · ${esc(c.cliente)} · saldo ${gs(c.saldo)}</option>`).join('')}</select></label></div>
+    <div id="in-otr" style="display:none"><label class="f">Cuenta de ingreso<select class="in" id="in-cta">${ingCtas.map(c => `<option value="${c.codigo}">${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select></label></div>
+    <div class="grid2"><label class="f">Monto ₲ *<input class="in r" type="number" id="in-m" value="${presId ? ((cxc.find(c => c.id === presId) || {}).saldo || '') : ''}"></label><label class="f">Fecha *<input class="in" type="date" id="in-f" value="${hoyISO()}"></label></div>
+    <div class="grid2"><label class="f">Entra en<select class="in" id="in-fo">${opcionesFondo()}</select></label><label class="f">Comprobante<input class="in" id="in-co" placeholder="Recibo, transferencia…"></label></div>
+    <label class="f">Concepto<input class="in" id="in-c"></label></div>`, 'Registrar', () => {
+      const c = $('#in-cat').value, m = Math.round(pf($('#in-m').value)), p = $('#in-p').value;
+      if (!(m > 0)) { toast('Monto inválido'); return false; }
+      if (c === 'cobro' && !p) { toast('Elegí la venta que se cobra'); return false; }
+      return {tipo:'ingreso', categoria:c, presupuestoId: c === 'cobro' ? p : null, clienteId: c === 'cobro' ? ((S.presupuestos.find(x => x.id === p) || {}).cliente || {}).clienteId || null : null,
+        cuenta: c === 'otro' ? $('#in-cta').value : null, monto:m, fecha:$('#in-f').value, fondoId:$('#in-fo').value, comprobante:$('#in-co').value.trim(), concepto:$('#in-c').value.trim()}; });
+  if (!r) return;
+  await put('movimientos', 'mv-' + uid(), {...r, por:S.me, at:now()});
+  if (r.presupuestoId) { const p = S.presupuestos.find(x => x.id === r.presupuestoId); if (p) await patchPres(p.id, {}, `Cobro registrado ${gs(r.monto)}`); }
+  toast('Ingreso registrado');
+}
+async function nuevaTransferencia(){
+  const F = (S.fondos || []).filter(f => f.activo !== false); if (F.length < 2) { toast('Necesitás al menos dos cuentas'); return; }
+  const r = await dialog('Transferencia entre cuentas', `<div style="display:flex;flex-direction:column;gap:10px">
+    <div class="grid2"><label class="f">Desde<select class="in" id="tr-o">${opcionesFondo(F[0].id)}</select></label><label class="f">Hacia<select class="in" id="tr-d">${opcionesFondo(F[1].id)}</select></label></div>
+    <div class="grid2"><label class="f">Monto ₲ *<input class="in r" type="number" id="tr-m"></label><label class="f">Fecha<input class="in" type="date" id="tr-f" value="${hoyISO()}"></label></div>
+    <label class="f">Concepto<input class="in" id="tr-c" placeholder="Ej. depósito de la caja al banco"></label></div>`, 'Registrar', () => {
+      const o = $('#tr-o').value, d = $('#tr-d').value, m = Math.round(pf($('#tr-m').value));
+      if (o === d) { toast('Elegí cuentas distintas'); return false; } if (!(m > 0)) { toast('Monto inválido'); return false; }
+      return {tipo:'transferencia', fondoId:o, fondoDestinoId:d, monto:m, fecha:$('#tr-f').value, concepto:$('#tr-c').value.trim()}; });
+  if (r) { await put('movimientos', 'mv-' + uid(), {...r, por:S.me, at:now()}); toast('Transferencia registrada'); }
+}
+async function nuevaOP(compraId){
+  const comp = compraId && (S.compras || []).find(c => c.id === compraId);
+  const pendientes = (S.compras || []).filter(c => !c.anulada && saldoCompra(c).saldo > 0 && !(S.ordenes || []).some(o => o.destino && o.destino.compraId === c.id && ['pendiente','aprobada'].includes(o.estado)));
+  const ctas = planCuentas().filter(c => esImputable(c.codigo) && /^(5|6|2|3\.1\.03|1\.2)/.test(c.codigo));
+  const r = await dialog('Nueva orden de pago', `<div style="display:flex;flex-direction:column;gap:10px">
+    <label class="f">Qué se paga<select class="in" id="op-t" onchange="document.getElementById('op-cp').style.display=this.value==='compra'?'':'none';document.getElementById('op-ct').style.display=this.value==='cuenta'?'':'none'">
+      <option value="compra" ${comp || pendientes.length ? 'selected' : ''}>Una compra registrada (factura de proveedor)</option><option value="cuenta" ${!comp && !pendientes.length ? 'selected' : ''}>Un gasto u otro pago (sueldo, retiro, impuesto…)</option></select></label>
+    <div id="op-cp" ${comp || pendientes.length ? '' : 'style="display:none"'}><label class="f">Compra<select class="in" id="op-c" onchange="const o=this.selectedOptions[0];if(o&&o.dataset.s){document.getElementById('op-m').value=o.dataset.s;document.getElementById('op-b').value=o.dataset.p}"><option value="">— Elegir —</option>${[...(comp ? [comp] : []), ...pendientes.filter(c => c !== comp)].map(c => `<option value="${esc(c.id)}" data-s="${saldoCompra(c).saldo}" data-p="${esc(provNombre(c.proveedorId))}" ${comp===c?'selected':''}>${esc(provNombre(c.proveedorId))} · Fact. ${esc(c.numeroFactura || 's/n')} · saldo ${gs(saldoCompra(c).saldo)}</option>`).join('')}</select></label></div>
+    <div id="op-ct" ${comp || pendientes.length ? 'style="display:none"' : ''}><label class="f">Cuenta (a qué corresponde)<select class="in" id="op-cta">${ctas.map(c => `<option value="${c.codigo}" ${c.codigo==='6.1.09'?'selected':''}>${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select></label>
+      <p class="small muted" style="margin:4px 0 0">Si el pago tiene factura con IVA, conviene registrar primero la compra en Contabilidad para descontar el IVA crédito.</p></div>
+    <div class="grid2"><label class="f">Beneficiario *<input class="in" id="op-b" value="${esc(comp ? provNombre(comp.proveedorId) : '')}"></label><label class="f">Monto ₲ *<input class="in r" type="number" id="op-m" value="${comp ? saldoCompra(comp).saldo : ''}"></label></div>
+    <label class="f">Concepto *<input class="in" id="op-co" placeholder="Ej. compra de fenólico, alquiler de noviembre"></label>
+    <label class="f">Pagar desde (sugerido)<select class="in" id="op-f">${opcionesFondo()}</select></label></div>`, 'Enviar a aprobación', () => {
+      const t = $('#op-t').value, m = Math.round(pf($('#op-m').value)), b = $('#op-b').value.trim(), co = $('#op-co').value.trim();
+      if (t === 'compra' && !$('#op-c').value) { toast('Elegí la compra'); return false; }
+      if (!(m > 0) || !b || !co) { toast('Completá beneficiario, monto y concepto'); return false; }
+      if (t === 'compra') { const c = (S.compras || []).find(x => x.id === $('#op-c').value); if (c && m > saldoCompra(c).saldo) { toast('El monto supera el saldo de la compra'); return false; } }
+      return {destino: t === 'compra' ? {tipo:'compra', compraId:$('#op-c').value} : {tipo:'cuenta', cuenta:$('#op-cta').value}, monto:m, beneficiario:b, concepto:co, fondoSugerido:$('#op-f').value}; });
+  if (!r) return;
+  const id = await siguienteOP();
+  await put('ordenes', id, {...r, estado:'pendiente', fecha:hoyISO(), creadoPor:S.me, at:now()});
+  toast(`${id} enviada a aprobación`); S.cj.tab = 'op'; S.cj.est = 'abiertas'; if (S.route !== 'caja') go('caja'); else render();
+}
+async function siguienteOP(){
+  if (S.mode === 'supa') { const {data, error} = await S.sb.rpc('siguiente_op'); if (error) { toast('No se pudo numerar la OP: ' + error.message); throw error; } return data; }
+  const n = (S.ordenes || []).reduce((m,o) => Math.max(m, parseInt(String(o.id).replace(/\D/g,''), 10) || 0), 0);
+  return 'OP-' + String(n + 1).padStart(4, '0');
+}
+async function decidirOP(id, estado){
+  const o = (S.ordenes || []).find(x => x.id === id); if (!o) return;
+  const txt = {aprobada:'Aprobar', rechazada:'Rechazar', anulada:'Anular'}[estado];
+  const r = await dialog(`${txt} ${id}`, `<p><b>${esc(o.beneficiario)}</b> · ${gs(o.monto)}<br><span class="small muted">${esc(o.concepto)}</span></p>${estado !== 'aprobada' ? '<label class="f">Motivo<input class="in" id="op-mo"></label>' : ''}`, txt, () => estado !== 'aprobada' ? ($('#op-mo').value.trim() || 'Sin motivo') : true);
+  if (!r) return;
+  const d = {...o}; delete d.id; d.estado = estado;
+  if (estado !== 'anulada') { d.aprobadaPor = S.me; d.aprobadaAt = now(); }
+  if (estado !== 'aprobada') d.motivo = r;
+  await put('ordenes', id, d); toast(`${id}: ${OPEST[estado][0]}`);
+}
+async function pagarOP(id){
+  const o = (S.ordenes || []).find(x => x.id === id); if (!o || o.estado !== 'aprobada') return;
+  const r = await dialog(`Pagar ${id}`, `<p style="margin-top:0"><b>${esc(o.beneficiario)}</b> · <b>${gs(o.monto)}</b><br><span class="small muted">${esc(o.concepto)}</span></p>
+    <div style="display:flex;flex-direction:column;gap:10px"><div class="grid2"><label class="f">Sale de<select class="in" id="pg-f">${opcionesFondo(o.fondoSugerido)}</select></label><label class="f">Fecha<input class="in" type="date" id="pg-d" value="${hoyISO()}"></label></div>
+    <label class="f">Comprobante<input class="in" id="pg-c" placeholder="N° de transferencia, cheque, recibo…"></label></div>`, 'Registrar pago', () => {
+      const f = (S.fondos || []).find(x => x.id === $('#pg-f').value);
+      if (f && fondoSaldo(f) < o.monto && !confirmSaldo) { window.confirmSaldo = true; toast(`Ojo: ${f.nombre} queda en negativo. Tocá de nuevo para confirmar.`); return false; }
+      return {fondoId:$('#pg-f').value, fecha:$('#pg-d').value, comprobante:$('#pg-c').value.trim()}; });
+  window.confirmSaldo = false;
+  if (!r) return;
+  const mid = 'mv-' + uid();
+  await put('movimientos', mid, {tipo:'egreso', opId:id, monto:+o.monto, ...r, concepto:o.concepto, por:S.me, at:now()});
+  if (S.mode !== 'supa') { const d = {...o}; delete d.id; Object.assign(d, {estado:'pagada', pagoMovId:mid, pagadaAt:now()}); await put('ordenes', id, d); }
+  else { o.estado = 'pagada'; o.pagoMovId = mid; render(); } // la base la marca pagada; tiempo real confirma
+  toast(`${id} pagada`);
+}
+window.confirmSaldo = false;
+async function anularMov(id){
+  const m = (S.movimientos || []).find(x => x.id === id); if (!m) return;
+  const r = await dialog('Anular movimiento', `<p class="small" style="margin-top:0">El movimiento queda tachado y deja de sumar. ${m.tipo === 'egreso' ? `La orden ${esc(m.opId)} vuelve a "aprobada, por pagar".` : ''}</p><label class="f">Motivo *<input class="in" id="am-m"></label>`, 'Anular', () => { const v = $('#am-m').value.trim(); if (v.length < 3) { toast('Indicá el motivo'); return false; } return v; });
+  if (!r) return;
+  const d = {...m}; delete d.id; Object.assign(d, {anulado:true, motivoAnulacion:r, anuladoPor:S.me, anuladoAt:now()});
+  await put('movimientos', id, d);
+  if (S.mode !== 'supa' && m.tipo === 'egreso') { const o = (S.ordenes || []).find(x => x.id === m.opId); if (o) { const od = {...o}; delete od.id; delete od.pagoMovId; od.estado = 'aprobada'; od.pagoAnulado = id; await put('ordenes', o.id, od); } }
+  toast('Movimiento anulado');
+}
+
+/* =====================================================================
+   CONTABILIDAD
+   ===================================================================== */
+S.ct = {tab:'resultados', mes: mesDe(hoyISO()), cta:'1.1.02', anio: hoyISO().slice(0,4), crec:3, meses:12};
+function viewContabilidad(){
+  const tabs = [['resultados','Resultados'],['balance','Balance'],['indicadores','Indicadores'],['proyeccion','P&L proyectado'],['compras','Compras'],['stock','Stock'],['diario','Libro diario'],['mayor','Mayor'],['plan','Plan de cuentas'],['proveedores','Proveedores']];
+  const fn = {resultados:ctResultados, balance:ctBalance, indicadores:ctIndicadores, proyeccion:ctProyeccion, compras:ctCompras, stock:ctStock, diario:ctDiario, mayor:ctMayor, plan:ctPlan, proveedores:ctProveedores}[S.ct.tab];
+  return `<div class="top"><div><h1>Contabilidad</h1><p>Asientos generados automáticamente desde facturas, cobros, compras, pagos y stock. Información de gestión: los libros oficiales los lleva el contador.</p></div>
+    <div class="row"><button class="btn pri" onclick="editarCompra()">+ Compra</button></div></div>
+  <div class="seg" style="margin-bottom:16px">${tabs.map(([k,n]) => `<button class="${S.ct.tab===k?'on':''}" onclick="S.ct.tab='${k}';render()">${n}</button>`).join('')}</div>
+  ${loadingOr(fn())}`;
+}
+function selAnio(){ const A = libroDiario(); const ys = [...new Set([...A.map(a => a.fecha.slice(0,4)), hoyISO().slice(0,4)])].sort().reverse();
+  return `<select class="in" style="width:auto" onchange="S.ct.anio=this.value;render()">${ys.map(y => `<option ${S.ct.anio===y?'selected':''}>${y}</option>`).join('')}</select>`; }
+function ctResultados(){
+  const A = libroDiario(); const y = S.ct.anio;
+  const conDatos = A.map(a => mesDe(a.fecha)).filter(m => m.startsWith(y)).sort(); const desde = conDatos[0] || mesDe(hoyISO());
+  const ms = Array.from({length:12}, (_, i) => `${y}-${String(i+1).padStart(2,'0')}`).filter(m => m >= desde && (m <= mesDe(hoyISO()) || conDatos.includes(m)));
+  const R = ms.map(m => resultadoPeriodo(A, m + '-01', finMes(m))); const T = resultadoPeriodo(A, y + '-01-01', y + '-12-31');
+  const ctasDet = [...new Set(R.flatMap(r => Object.keys(r.det)))].sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+  const fila = (lbl, f, cls = '') => `<tr class="${cls}"><td>${lbl}</td>${R.map(r => `<td class="r num">${fmtR(f(r))}</td>`).join('')}<td class="r num"><b>${fmtR(f(T))}</b></td></tr>`;
+  const fmtR = v => (Math.round(v) ? (v < 0 ? '(' + fmtN(-v) + ')' : fmtN(v)) : '–');
+  const det = pref => ctasDet.filter(c => pref(c)).map(c => fila(`<span class="small muted" style="padding-left:12px">${c} ${esc(nombreCta(c))}</span>`, r => r.det[c] || 0)).join('');
+  return `<div class="row" style="margin-bottom:12px">${selAnio()}<span class="small muted">Importes en guaraníes, sin IVA. Ventas = facturas registradas.</span></div>
+  <div class="card" style="overflow-x:auto"><table class="t" style="min-width:${200 + ms.length * 95}px;font-size:13.5px"><thead><tr><th>Estado de resultados ${y}</th>${ms.map(m => `<th class="r">${nombreMes(m)}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>
+    ${fila('<b>Ventas netas</b>', r => r.ventas)}${fila('Otros ingresos', r => r.otrosIng)}
+    ${fila('(-) Costo de ventas', r => -r.costo)}${det(c => claseCta(c) === 'costo')}
+    ${fila('<b>Margen bruto</b>', r => r.margenBruto, 'tot')}${fila('<span class="small muted">Margen bruto %</span>', r => 0)}
+    ${fila('(-) Gastos operativos', r => -r.gastos)}${det(c => claseCta(c) === 'gasto')}
+    ${fila('<b>EBITDA</b>', r => r.ebitda, 'tot')}
+    ${fila('(-) Depreciaciones', r => -r.dep)}${fila('<b>Resultado operativo (EBIT)</b>', r => r.ebit, 'tot')}
+    ${fila('(-) Intereses y gastos financieros', r => -r.fin)}${fila('(-) Impuesto a la renta', r => -r.imp)}
+    ${fila('<b>Resultado neto</b>', r => r.neto, 'tot2')}
+  </tbody></table></div>
+  <style>.t tr.tot td{border-top:2px solid var(--line2);font-weight:700}.t tr.tot2 td{border-top:2px solid var(--ink);font-weight:700;background:#faf9f7}</style>`.replace(/<tr class=""><td><span class="small muted">Margen bruto %<\/span><\/td>[\s\S]*?<\/tr>/, `<tr><td><span class="small muted">Margen bruto %</span></td>${R.map(r => `<td class="r small muted">${r.ingresos ? pct(r.margenBruto / r.ingresos, 0) : '–'}</td>`).join('')}<td class="r small muted">${T.ingresos ? pct(T.margenBruto / T.ingresos, 0) : '–'}</td></tr>`);
+}
+function balanceA(A, hasta){
+  const s = saldos(A, null, hasta); const res = resultadoPeriodo(A, null, hasta).neto;
+  const grupo = (pref, signo) => planCuentas().filter(c => esImputable(c.codigo) && c.codigo.startsWith(pref)).map(c => ({c, v:(s[c.codigo] || 0) * signo})).filter(x => Math.round(x.v));
+  const g = {ac:grupo('1.1', 1), anc:grupo('1.2', 1), pc:grupo('2.1', -1), pnc:grupo('2.2', -1), pat:grupo('3', -1)};
+  const sum = L => L.reduce((t,x) => t + x.v, 0);
+  const activo = sum(g.ac) + sum(g.anc), pasivo = sum(g.pc) + sum(g.pnc), patrimonio = sum(g.pat) + res;
+  return {g, res, activo, pasivo, patrimonio, sum};
+}
+function ctBalance(){
+  const A = libroDiario(); const ms = mesesConDatos(A); if (!ms.includes(S.ct.mes)) S.ct.mes = ms[ms.length - 1];
+  const hasta = finMes(S.ct.mes); const B = balanceA(A, hasta);
+  const bloque = (t, L) => `<tr><td colspan="2" style="background:#faf9f7"><b>${t}</b></td></tr>${L.length ? L.map(x => `<tr><td class="small">${x.c.codigo} ${esc(x.c.nombre)}</td><td class="r num">${fmtN(x.v)}</td></tr>`).join('') : '<tr><td class="small muted" colspan="2">—</td></tr>'}<tr><td class="small"><b>Total ${t.toLowerCase()}</b></td><td class="r num"><b>${fmtN(B.sum(L))}</b></td></tr>`;
+  const ok = Math.abs(B.activo - B.pasivo - B.patrimonio) < 2;
+  return `<div class="row" style="margin-bottom:12px"><select class="in" style="width:auto" onchange="S.ct.mes=this.value;render()">${ms.slice().reverse().map(m => `<option value="${m}" ${S.ct.mes===m?'selected':''}>Al cierre de ${nombreMes(m)}</option>`).join('')}</select>
+    <span class="tag" style="background:${ok ? 'var(--ok-soft)' : 'var(--bad-soft)'};color:${ok ? 'var(--ok)' : 'var(--bad)'}"><span class="dot"></span>${ok ? 'Balance cuadrado' : 'Descuadre: revisar asientos manuales'}</span></div>
+  <div class="dash"><div class="card"><table class="t"><thead><tr><th>Activo</th><th class="r">₲</th></tr></thead><tbody>${bloque('Activo corriente', B.g.ac)}${bloque('Activo no corriente', B.g.anc)}
+    <tr><td><b>TOTAL ACTIVO</b></td><td class="r num"><b>${gs(B.activo)}</b></td></tr></tbody></table></div>
+  <div class="card"><table class="t"><thead><tr><th>Pasivo y patrimonio</th><th class="r">₲</th></tr></thead><tbody>${bloque('Pasivo corriente', B.g.pc)}${bloque('Pasivo no corriente', B.g.pnc)}${bloque('Patrimonio', B.g.pat)}
+    <tr><td class="small">Resultado acumulado (incluye el ejercicio)</td><td class="r num">${fmtN(B.res)}</td></tr>
+    <tr><td><b>TOTAL PASIVO + PATRIMONIO</b></td><td class="r num"><b>${gs(B.pasivo + B.patrimonio)}</b></td></tr></tbody></table></div></div>
+  <p class="small muted">IVA: el saldo neto entre IVA débito (2.1.02) e IVA crédito (1.1.04) es lo que aproximadamente se paga o queda a favor; la liquidación oficial es del contador.</p>`;
+}
+function flujosSocios(A){ // por mes: aportes (-), retiros (+); valor final = patrimonio
+  const ms = mesesConDatos(A); if (!ms.length) return {ms, f:[]};
+  const f = ms.map(m => { let v = 0; A.filter(a => mesDe(a.fecha) === m).forEach(a => a.lineas.forEach(l => { if (l.cta === CTA.capital) v -= l.haber - l.debe; if (l.cta === CTA.retiros) v += l.debe - l.haber; })); return v; });
+  const B = balanceA(A, finMes(ms[ms.length - 1])); f[f.length - 1] += B.patrimonio + 0; // valor terminal
+  return {ms, f, patrimonio:B.patrimonio};
+}
+function ctIndicadores(){
+  const A = libroDiario(); const y = S.ct.anio; const T = resultadoPeriodo(A, y + '-01-01', y + '-12-31'); const TT = resultadoPeriodo(A, null, null);
+  const capital = -A.reduce((s,a) => s + a.lineas.filter(l => l.cta === CTA.capital).reduce((t,l) => t + l.debe - l.haber, 0), 0);
+  const {ms, f, patrimonio} = flujosSocios(A); const r = tir(f);
+  const kpi = (l, v, s) => `<div class="card kpi"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`;
+  return `<div class="row" style="margin-bottom:12px">${selAnio()}</div>
+  <div class="kpis">
+    ${kpi('Ventas netas ' + y, gsM(T.ventas), 'Sin IVA')}
+    ${kpi('EBITDA ' + y, gsM(T.ebitda), T.ingresos ? 'Margen EBITDA ' + pct(T.ebitda / T.ingresos) : 'Sin ventas')}
+    ${kpi('Resultado neto ' + y, gsM(T.neto), T.ingresos ? 'Margen neto ' + pct(T.neto / T.ingresos) : '—')}
+    ${kpi('Margen bruto ' + y, T.ingresos ? pct(T.margenBruto / T.ingresos) : '—', 'Ventas − costo de materiales')}
+    ${kpi('Capital aportado', gsM(capital), 'Aportes + saldos iniciales')}
+    ${kpi('ROI acumulado', capital > 0 ? pct(TT.neto / capital) : '—', 'Resultado neto acumulado ÷ capital')}
+    ${kpi('TIR (anualizada)', r === null ? '—' : pct(Math.pow(1 + r, 12) - 1), r === null ? 'Faltan aportes o resultados para calcularla' : 'Mensual ' + pct(r, 2))}
+    ${kpi('Patrimonio actual', gsM(patrimonio || 0), 'Valor final usado en la TIR')}
+  </div>
+  <div class="card pad"><h3 style="margin-bottom:8px">Cómo se calculan</h3><ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+    <li><b>EBITDA</b> = ventas + otros ingresos − costo de ventas − gastos operativos (antes de depreciaciones, intereses e impuesto a la renta).</li>
+    <li><b>ROI</b> = resultado neto acumulado ÷ capital aportado por los socios (cuenta 3.1.01).</li>
+    <li><b>TIR</b> = tasa que iguala a cero los flujos de los socios: aportes (negativos), retiros (positivos) y, al final, el patrimonio contable como valor de la empresa. Es una aproximación; con pocos meses de datos es muy volátil.</li>
+    <li>Para que sean confiables hace falta registrar todo: aportes de capital, compras, sueldos, depreciaciones y el impuesto a la renta (asiento manual o según el contador).</li></ul></div>`;
+}
+function ctProyeccion(){
+  const A = libroDiario(); const ms = mesesConDatos(A).filter(m => m < mesDe(hoyISO()) || A.some(a => mesDe(a.fecha) === m));
+  const base = ms.slice(-3); const R = base.map(m => resultadoPeriodo(A, m + '-01', finMes(m)));
+  const avg = k => R.length ? R.reduce((s,r) => s + r[k], 0) / R.length : 0;
+  const v0 = avg('ingresos'), costoPct = v0 ? avg('costo') / v0 : 0, gf = avg('gastos'), dep = avg('dep');
+  const g = (+S.ct.crec || 0) / 100; const n = Math.min(Math.max(+S.ct.meses || 12, 3), 36);
+  const filas = Array.from({length:n}, (_, i) => { const v = v0 * Math.pow(1 + g, i + 1); const c = v * costoPct; return {v, c, mb:v - c, gf, e:v - c - gf, dep, ebit:v - c - gf - dep}; });
+  const tot = k => filas.reduce((s,x) => s + x[k], 0);
+  const pe = (1 - costoPct) > 0 ? gf / (1 - costoPct) : null;
+  return `<div class="card pad" style="margin-bottom:16px"><div class="row">
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px">Crecimiento mensual de ventas (%)<input class="in r" style="width:80px" type="number" step="0.5" value="${esc(S.ct.crec)}" onchange="S.ct.crec=this.value;render()"></label>
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px">Meses<input class="in r" style="width:70px" type="number" value="${esc(n)}" onchange="S.ct.meses=this.value;render()"></label></div>
+    <p class="small muted" style="margin:10px 0 0">Base: promedio de ${R.length ? base.map(nombreMes).join(', ') : 'sin datos'} → ventas ${gs(v0)}/mes, costo de ventas ${pct(costoPct)} de las ventas, gastos operativos ${gs(gf)}/mes. ${pe !== null ? `<b>Punto de equilibrio: ventas de ${gs(pe)}/mes</b> (cubre gastos operativos con el margen bruto actual).` : ''}</p>
+    ${!R.length || !v0 ? `<div class="note warn" style="margin-top:10px">${IC.warn}<div>Todavía no hay meses con ventas registradas: la proyección arranca en cero. Registrá facturas, compras y gastos para que tenga base real.</div></div>` : ''}</div>
+  <div class="card" style="overflow-x:auto"><table class="t" style="font-size:13.5px"><thead><tr><th>Mes</th><th class="r">Ventas</th><th class="r">Costo ventas</th><th class="r">Margen bruto</th><th class="r">Gastos operativos</th><th class="r">EBITDA</th><th class="r">Depreciación</th><th class="r">EBIT</th></tr></thead><tbody>
+    ${filas.map((x, i) => `<tr><td>+${i+1}</td><td class="r num">${fmtN(x.v)}</td><td class="r num">${fmtN(x.c)}</td><td class="r num">${fmtN(x.mb)}</td><td class="r num">${fmtN(x.gf)}</td><td class="r num"><b>${fmtN(x.e)}</b></td><td class="r num">${fmtN(x.dep)}</td><td class="r num">${fmtN(x.ebit)}</td></tr>`).join('')}
+    <tr style="font-weight:700;border-top:2px solid var(--ink)"><td>Total</td><td class="r num">${fmtN(tot('v'))}</td><td class="r num">${fmtN(tot('c'))}</td><td class="r num">${fmtN(tot('mb'))}</td><td class="r num">${fmtN(tot('gf'))}</td><td class="r num">${fmtN(tot('e'))}</td><td class="r num">${fmtN(tot('dep'))}</td><td class="r num">${fmtN(tot('ebit'))}</td></tr>
+  </tbody></table></div>
+  <p class="small muted">Modelo sugerido: ventas que crecen al ritmo indicado; costo de ventas como % de las ventas (variable); gastos operativos y depreciación fijos al promedio reciente. Es una estimación para planificar, no un pronóstico.</p>`;
+}
+function ctCompras(){
+  const L = (S.compras || []).slice().sort((a,b) => String(b.fecha).localeCompare(String(a.fecha)));
+  return `<div class="card">${L.length ? `<table class="t"><thead><tr><th>Fecha</th><th>Proveedor / factura</th><th class="r">Total</th><th class="r">Saldo</th><th></th></tr></thead><tbody>
+    ${L.map(c => { const s = saldoCompra(c); const tipos = [...new Set((c.items || []).map(i => ({material:'Materiales', gasto:'Gasto', activo:'Activo fijo'})[i.tipo]))].join(', ');
+      const opAbierta = (S.ordenes || []).find(o => o.destino && o.destino.compraId === c.id && ['pendiente','aprobada'].includes(o.estado));
+      return `<tr ${c.anulada ? 'style="opacity:.45"' : ''}><td class="small">${fDate(c.fecha)}</td><td><b>${esc(provNombre(c.proveedorId))}</b><div class="small muted">Fact. ${esc(c.numeroFactura || 's/n')} · ${esc(tipos)} · ${c.condicion === 'credito' ? 'Crédito' : 'Contado'}${c.anulada ? ' · ANULADA' : ''}</div></td>
+        <td class="r num">${gs(c.total)}</td><td class="r num">${c.anulada ? '—' : s.saldo > 0 ? `<b>${gs(s.saldo)}</b>` : '<span style="color:var(--ok)">Pagada</span>'}</td>
+        <td class="r" style="white-space:nowrap">${!c.anulada && s.saldo > 0 ? (opAbierta ? `<span class="small muted">${esc(opAbierta.id)} ${opAbierta.estado}</span>` : `<button class="btn sm" onclick="nuevaOP('${esc(c.id)}')">Orden de pago</button>`) : ''}
+          ${!c.anulada && S.canAdmin ? `<button class="btn sm ghost" onclick="anularCompra('${esc(c.id)}')">Anular</button>` : ''}</td></tr>`; }).join('')}
+  </tbody></table>` : '<div class="empty"><b>Sin compras</b>Registrá las facturas de proveedores: materiales (entran al stock), gastos o activos.</div>'}</div>`;
+}
+let CP = null;
+async function editarCompra(){
+  if (!(S.proveedores || []).length && !(await nuevoProveedor())) return;
+  CP = {fecha:hoyISO(), proveedorId:(S.proveedores[0] || {}).id, numeroFactura:'', timbrado:'', condicion:'credito', items:[{tipo:'material', materialId:'', descripcion:'', cuenta:'', cantidad:1, importe:'', tasaIva:10}], generarOP:true};
+  dibujarCompra();
+}
+function dibujarCompra(){
+  document.querySelector('.cp-ov')?.remove();
+  const gastos = planCuentas().filter(c => esImputable(c.codigo) && /^(5|6)/.test(c.codigo) && c.codigo !== CTA.cmv);
+  const activos = planCuentas().filter(c => esImputable(c.codigo) && c.codigo.startsWith('1.2') && c.codigo !== CTA.depAcum);
+  const tot = CP.items.reduce((s,i) => s + (Math.round(+i.importe) || 0), 0);
+  const iva = CP.items.reduce((s,i) => s + ivaSplit(i.importe, i.tasaIva).iva, 0);
+  const w = document.createElement('div'); w.className = 'dlg-ov cp-ov';
+  w.innerHTML = `<div class="dlg" style="max-width:820px;max-height:92vh;overflow:auto"><h3>Registrar compra</h3>
+    <div class="grid4" style="margin-top:10px">
+      <label class="f">Proveedor<select class="in" data-cp="proveedorId">${(S.proveedores || []).map(p => `<option value="${p.id}" ${CP.proveedorId===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select><a href="#" class="small" onclick="nuevoProveedor().then(()=>{CP.proveedorId=(S.proveedores[S.proveedores.length-1]||{}).id;dibujarCompra()});return false">+ nuevo proveedor</a></label>
+      <label class="f">N° factura<input class="in" data-cp="numeroFactura" value="${esc(CP.numeroFactura)}" placeholder="001-001-0000123"></label>
+      <label class="f">Fecha<input class="in" type="date" data-cp="fecha" value="${esc(CP.fecha)}"></label>
+      <label class="f">Condición<select class="in" data-cp="condicion"><option value="credito" ${CP.condicion==='credito'?'selected':''}>Crédito</option><option value="contado" ${CP.condicion==='contado'?'selected':''}>Contado</option></select></label></div>
+    <table class="lines ft" style="margin-top:12px"><thead><tr><th style="width:110px">Tipo</th><th>Material / descripción</th><th style="width:170px">Cuenta</th><th class="r" style="width:80px">Cant.</th><th class="r" style="width:120px">Importe ₲ (c/IVA)</th><th style="width:80px">IVA</th><th style="width:26px"></th></tr></thead><tbody>
+    ${CP.items.map((i, k) => `<tr><td><select class="in" data-cp="items.${k}.tipo"><option value="material" ${i.tipo==='material'?'selected':''}>Material</option><option value="gasto" ${i.tipo==='gasto'?'selected':''}>Gasto</option><option value="activo" ${i.tipo==='activo'?'selected':''}>Activo fijo</option></select></td>
+      <td>${i.tipo === 'material' ? `<select class="in" data-cp="items.${k}.materialId"><option value="">— Material —</option>${S.materiales.map(m => `<option value="${m.id}" ${i.materialId===m.id?'selected':''}>${esc(m.nombre)} (${esc(m.unidad)})</option>`).join('')}</select>` : `<input class="in" data-cp="items.${k}.descripcion" value="${esc(i.descripcion)}">`}</td>
+      <td>${i.tipo === 'material' ? `<span class="small muted">1.1.05 Inventario</span>` : `<select class="in" data-cp="items.${k}.cuenta">${(i.tipo === 'activo' ? activos : gastos).map(c => `<option value="${c.codigo}" ${i.cuenta===c.codigo?'selected':''}>${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select>`}</td>
+      <td><input class="in r" type="number" step="0.01" data-cp="items.${k}.cantidad" value="${esc(i.cantidad)}"></td>
+      <td><input class="in r" type="number" data-cp="items.${k}.importe" value="${esc(i.importe)}"></td>
+      <td><select class="in" data-cp="items.${k}.tasaIva">${[[10,'10%'],[5,'5%'],[0,'Exento']].map(([v,n]) => `<option value="${v}" ${+i.tasaIva===v?'selected':''}>${n}</option>`).join('')}</select></td>
+      <td><button class="x" onclick="CP.items.splice(${k},1);dibujarCompra()">×</button></td></tr>`).join('')}</tbody></table>
+    <button class="btn sm ghost" onclick="CP.items.push({tipo:'gasto',materialId:'',descripcion:'',cuenta:'6.1.09',cantidad:1,importe:'',tasaIva:10});dibujarCompra()">+ Renglón</button>
+    <div class="row" style="justify-content:space-between;margin-top:8px"><label class="row small"><input type="checkbox" data-cp="generarOP" ${CP.generarOP?'checked':''}> Crear orden de pago por el total (va a aprobación)</label>
+      <span>IVA crédito: <b class="num" id="cpIva">${gs(iva)}</b> · Total: <b class="num" style="font-size:18px" id="cpTot">${gs(tot)}</b></span></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.querySelector('.cp-ov').remove()">Cancelar</button><button class="btn pri" onclick="guardarCompra()">Registrar compra</button></div></div>`;
+  document.body.appendChild(w);
+}
+document.addEventListener('input', e => { const t = e.target; if (!t.dataset || !t.dataset.cp || !CP) return;
+  const v = t.type === 'checkbox' ? t.checked : (t.type === 'number' || /tasaIva/.test(t.dataset.cp)) ? (t.value === '' ? '' : pf(t.value)) : t.value;
+  setPath(CP, t.dataset.cp, v);
+  if (/\.tipo$/.test(t.dataset.cp)) { const k = +t.dataset.cp.split('.')[1]; const it = CP.items[k]; it.cuenta = it.tipo === 'activo' ? CTA.activoFijo : it.tipo === 'gasto' ? '6.1.09' : ''; dibujarCompra(); return; }
+  if (t.tagName === 'SELECT' && /materialId/.test(t.dataset.cp)) return;
+  const tot = CP.items.reduce((s,i) => s + (Math.round(+i.importe) || 0), 0), iva = CP.items.reduce((s,i) => s + ivaSplit(i.importe, i.tasaIva).iva, 0);
+  const a = $('#cpTot'); if (a) a.textContent = gs(tot); const b = $('#cpIva'); if (b) b.textContent = gs(iva); });
+async function guardarCompra(){
+  const items = CP.items.filter(i => +i.importe > 0);
+  if (!CP.proveedorId) { toast('Elegí el proveedor'); return; }
+  if (!items.length) { toast('Cargá al menos un renglón con importe'); return; }
+  const mal = items.find(i => (i.tipo === 'material' && !i.materialId) || (i.tipo !== 'material' && !String(i.descripcion || '').trim()) || !(+i.cantidad > 0));
+  if (mal) { toast('Cada renglón necesita material o descripción y cantidad'); return; }
+  const total = items.reduce((s,i) => s + Math.round(+i.importe), 0);
+  const id = 'cp-' + uid();
+  const doc = {fecha:CP.fecha, proveedorId:CP.proveedorId, numeroFactura:CP.numeroFactura.trim(), condicion:CP.condicion, items:items.map(i => ({tipo:i.tipo, materialId:i.tipo === 'material' ? i.materialId : null, descripcion:i.tipo === 'material' ? ((matById(i.materialId) || {}).nombre || '') : i.descripcion.trim(), cuenta:i.tipo === 'material' ? CTA.inventario : i.cuenta, cantidad:+i.cantidad, importe:Math.round(+i.importe), tasaIva:+i.tasaIva})), total, por:S.me, at:now()};
+  await put('compras', id, doc);
+  document.querySelector('.cp-ov')?.remove();
+  if (CP.generarOP) { const op = await siguienteOP(); await put('ordenes', op, {destino:{tipo:'compra', compraId:id}, monto:total, beneficiario:provNombre(CP.proveedorId), concepto:`Factura ${doc.numeroFactura || 's/n'}`, fondoSugerido:'', estado:'pendiente', fecha:hoyISO(), creadoPor:S.me, at:now()}); toast(`Compra registrada y ${op} enviada a aprobación`); }
+  else toast('Compra registrada');
+  CP = null;
+}
+async function anularCompra(id){
+  const c = (S.compras || []).find(x => x.id === id); if (!c) return;
+  if (saldoCompra(c).pagado > 0 && !(await dialog('Compra con pagos', 'Esta compra ya tiene pagos registrados. Si la anulás, esos pagos quedan como saldo a favor con el proveedor. ¿Seguir?', 'Seguir'))) return;
+  const m = await dialog('Anular compra', '<label class="f">Motivo *<input class="in" id="ac-m"></label>', 'Anular', () => $('#ac-m').value.trim() || false);
+  if (!m) return;
+  const d = {...c}; delete d.id; Object.assign(d, {anulada:true, motivoAnulacion:m, anuladaPor:S.me, anuladaAt:now()}); await put('compras', id, d);
+}
+function ctProveedores(){
+  const L = (S.proveedores || []).slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+  return `<div class="card"><div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><h2>Proveedores</h2><button class="btn pri sm" onclick="nuevoProveedor()">+ Proveedor</button></div>
+    ${L.length ? `<table class="t"><thead><tr><th>Proveedor</th><th class="hide-m">Contacto</th><th class="r">Compras</th><th class="r">Saldo a pagar</th><th></th></tr></thead><tbody>
+    ${L.map(p => { const cs = (S.compras || []).filter(c => c.proveedorId === p.id && !c.anulada); return `<tr><td><b>${esc(p.nombre)}</b><div class="small muted">${p.ruc ? 'RUC ' + esc(p.ruc) : ''}${p.rubro ? ' · ' + esc(p.rubro) : ''}</div></td><td class="hide-m small">${esc([p.telefono, p.email].filter(Boolean).join(' · ') || '—')}</td>
+      <td class="r num">${gs(cs.reduce((s,c) => s + +c.total, 0))}</td><td class="r num"><b>${gs(cs.reduce((s,c) => s + Math.max(saldoCompra(c).saldo, 0), 0))}</b></td><td class="r"><button class="btn sm ghost" onclick="nuevoProveedor('${esc(p.id)}')">Editar</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin proveedores.</div>'}</div>`;
+}
+async function nuevoProveedor(id){
+  const p = id ? (S.proveedores || []).find(x => x.id === id) : {};
+  const r = await dialog(id ? 'Editar proveedor' : 'Nuevo proveedor', `<div style="display:flex;flex-direction:column;gap:10px">
+    <div class="grid2"><label class="f">Nombre / razón social *<input class="in" id="pv-n" value="${esc(p.nombre || '')}"></label><label class="f">RUC<input class="in" id="pv-r" value="${esc(p.ruc || '')}" placeholder="80012345-6"></label></div>
+    <div class="grid2"><label class="f">Teléfono<input class="in" id="pv-t" value="${esc(p.telefono || '')}"></label><label class="f">Email<input class="in" id="pv-e" value="${esc(p.email || '')}"></label></div>
+    <label class="f">Rubro<input class="in" id="pv-ru" value="${esc(p.rubro || '')}" placeholder="Fenólico, aluminio, herrajes, servicios…"></label></div>`, 'Guardar', () => {
+      const n = $('#pv-n').value.trim(); if (!n) { toast('Poné el nombre'); return false; }
+      const ruc = $('#pv-r').value.trim(); if (ruc && !/^\d{3,9}-\d$/.test(ruc)) { toast('RUC con dígito verificador: 80012345-6'); return false; }
+      return {nombre:n, ruc, telefono:$('#pv-t').value.trim(), email:$('#pv-e').value.trim(), rubro:$('#pv-ru').value.trim()}; });
+  if (!r) return false;
+  await put('proveedores', id || 'pv-' + uid(), {...(id ? (({id:_, ...x}) => x)(p) : {creado:now()}), ...r});
+  return true;
+}
+function ctStock(){
+  const {st} = motorStock();
+  const L = S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+  const total = L.reduce((s,m) => s + ((st[m.id] || {}).valor || 0), 0);
+  return `<div class="row" style="margin-bottom:12px;justify-content:space-between"><span>Valor del inventario: <b class="num">${gs(total)}</b> <span class="small muted">(costo promedio ponderado, sin IVA)</span></span><button class="btn sm" onclick="ajusteStock()">Ajuste de inventario</button></div>
+  <div class="card"><table class="t"><thead><tr><th>Material</th><th class="r">Stock</th><th class="r hide-m">Costo prom.</th><th class="r">Valor</th><th class="r hide-m">Entradas / salidas</th></tr></thead><tbody>
+    ${L.map(m => { const s = st[m.id] || {cant:0, valor:0, avg:+m.precio || 0, entradas:0, salidas:0}; return `<tr><td><b>${esc(m.nombre)}</b>${s.negativo || s.cant < -1e-6 ? ' <span class="tag" style="background:var(--bad-soft);color:var(--bad)">Stock negativo</span>' : ''}</td>
+      <td class="r num">${fmtN(s.cant, 2)} ${esc(m.unidad)}</td><td class="r num hide-m">${gs(s.avg)}</td><td class="r num">${gs(s.valor)}</td><td class="r num hide-m small">${fmtN(s.entradas, 2)} / ${fmtN(s.salidas, 2)}</td></tr>`; }).join('')}
+  </tbody></table></div>
+  <p class="small muted">Entradas: compras de materiales. Salidas: materiales de cada presupuesto al confirmarse la venta (incluye el % de desperdicio). Stock negativo = se vendió más de lo comprado: revisar compras o hacer un ajuste.</p>`;
+}
+async function ajusteStock(){
+  const r = await dialog('Ajuste de inventario', `<div style="display:flex;flex-direction:column;gap:10px"><label class="f">Material<select class="in" id="aj-m">${S.materiales.map(m => `<option value="${m.id}">${esc(m.nombre)} (${esc(m.unidad)})</option>`).join('')}</select></label>
+    <div class="grid2"><label class="f">Cantidad<span class="h">Positiva suma stock, negativa resta</span><input class="in r" type="number" step="0.01" id="aj-c"></label><label class="f">Fecha<input class="in" type="date" id="aj-f" value="${hoyISO()}"></label></div>
+    <label class="f">Motivo *<input class="in" id="aj-mo" placeholder="Conteo físico, rotura, muestra…"></label></div>`, 'Registrar', () => {
+      const c = pf($('#aj-c').value), mo = $('#aj-mo').value.trim(); if (!c || !mo) { toast('Cantidad y motivo'); return false; }
+      return {materialId:$('#aj-m').value, cantidad:c, fecha:$('#aj-f').value, motivo:mo}; });
+  if (r) await put('stockajustes', 'sa-' + uid(), {...r, por:S.me, at:now()});
+}
+function ctDiario(){
+  const A = libroDiario(); const ms = mesesConDatos(A); if (!ms.includes(S.ct.mes)) S.ct.mes = ms[ms.length - 1];
+  const L = A.filter(a => mesDe(a.fecha) === S.ct.mes);
+  const td = L.reduce((s,a) => s + a.lineas.reduce((t,l) => t + l.debe, 0), 0), th = L.reduce((s,a) => s + a.lineas.reduce((t,l) => t + l.haber, 0), 0);
+  return `<div class="row" style="margin-bottom:12px"><select class="in" style="width:auto" onchange="S.ct.mes=this.value;render()">${ms.slice().reverse().map(m => `<option value="${m}" ${S.ct.mes===m?'selected':''}>${nombreMes(m)}</option>`).join('')}</select>
+    <span class="small">Debe <b class="num">${gs(td)}</b> · Haber <b class="num">${gs(th)}</b> ${td === th ? '<span class="tag" style="background:var(--ok-soft);color:var(--ok)">Cuadra</span>' : '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">No cuadra</span>'}</span>
+    <span class="grow"></span>${S.canAdmin ? `<button class="btn sm" onclick="asientoManual()">+ Asiento manual</button>` : ''}</div>
+  ${L.length ? L.map(a => `<div class="card" style="margin-bottom:10px"><div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>N° ${a.n}</b> · ${fDate(a.fecha)} · ${esc(a.glosa)} <span class="small muted">(${a.origen})</span>
+      ${a.origen === 'manual' && S.canAdmin ? `<button class="btn sm ghost" style="float:right" onclick="anularAsiento('${esc(a.ref)}')">Anular</button>` : ''}</div>
+    <table class="t" style="font-size:13.5px"><tbody>${a.lineas.map(l => `<tr><td style="padding-left:${l.haber ? 34 : 14}px">${l.cta} ${esc(nombreCta(l.cta))}</td><td class="r num" style="width:140px">${l.debe ? fmtN(l.debe) : ''}</td><td class="r num" style="width:140px">${l.haber ? fmtN(l.haber) : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')
+    : '<div class="card empty"><b>Sin asientos en el mes</b>Se generan solos al registrar facturas, cobros, compras y pagos.</div>'}`;
+}
+let AS = null;
+function asientoManual(){ AS = {fecha:hoyISO(), glosa:'', lineas:[{cta:'6.2.01', debe:'', haber:''}, {cta:CTA.depAcum, debe:'', haber:''}]}; dibujarAsiento(); }
+function dibujarAsiento(){
+  document.querySelector('.as-ov')?.remove();
+  const ctas = planCuentas().filter(c => esImputable(c.codigo));
+  const d = AS.lineas.reduce((s,l) => s + (+l.debe || 0), 0), h = AS.lineas.reduce((s,l) => s + (+l.haber || 0), 0);
+  const w = document.createElement('div'); w.className = 'dlg-ov as-ov';
+  w.innerHTML = `<div class="dlg" style="max-width:700px;max-height:92vh;overflow:auto"><h3>Asiento manual</h3><p class="small muted" style="margin:0 0 10px">Para sueldos devengados, depreciaciones, impuesto a la renta, ajustes del contador, etc.</p>
+    <div class="grid2"><label class="f">Fecha<input class="in" type="date" data-as="fecha" value="${AS.fecha}"></label><label class="f">Glosa *<input class="in" data-as="glosa" value="${esc(AS.glosa)}" placeholder="Ej. Depreciación de noviembre"></label></div>
+    <table class="lines ft" style="margin-top:10px"><thead><tr><th>Cuenta</th><th class="r" style="width:130px">Debe</th><th class="r" style="width:130px">Haber</th><th style="width:26px"></th></tr></thead><tbody>
+    ${AS.lineas.map((l, k) => `<tr><td><select class="in" data-as="lineas.${k}.cta">${ctas.map(c => `<option value="${c.codigo}" ${l.cta===c.codigo?'selected':''}>${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select></td>
+      <td><input class="in r" type="number" data-as="lineas.${k}.debe" value="${esc(l.debe)}"></td><td><input class="in r" type="number" data-as="lineas.${k}.haber" value="${esc(l.haber)}"></td><td><button class="x" onclick="AS.lineas.splice(${k},1);dibujarAsiento()">×</button></td></tr>`).join('')}</tbody></table>
+    <button class="btn sm ghost" onclick="AS.lineas.push({cta:'6.1.09',debe:'',haber:''});dibujarAsiento()">+ Línea</button>
+    <div class="row" style="justify-content:flex-end;margin-top:6px" id="asTot">${totAs(d, h)}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.querySelector('.as-ov').remove()">Cancelar</button><button class="btn pri" onclick="guardarAsiento()">Registrar</button></div></div>`;
+  document.body.appendChild(w);
+}
+const totAs = (d, h) => `Debe <b class="num">${gs(d)}</b> · Haber <b class="num">${gs(h)}</b> ${d === h && d > 0 ? '<span class="tag" style="background:var(--ok-soft);color:var(--ok)">Cuadra</span>' : '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">No cuadra</span>'}`;
+document.addEventListener('input', e => { const t = e.target; if (!t.dataset || !t.dataset.as || !AS) return; setPath(AS, t.dataset.as, t.type === 'number' ? (t.value === '' ? '' : pf(t.value)) : t.value);
+  const d = AS.lineas.reduce((s,l) => s + (+l.debe || 0), 0), h = AS.lineas.reduce((s,l) => s + (+l.haber || 0), 0); const x = $('#asTot'); if (x) x.innerHTML = totAs(d, h); });
+async function guardarAsiento(){
+  const L = AS.lineas.filter(l => +l.debe || +l.haber).map(l => ({cta:l.cta, debe:Math.round(+l.debe || 0), haber:Math.round(+l.haber || 0)}));
+  const d = L.reduce((s,l) => s + l.debe, 0), h = L.reduce((s,l) => s + l.haber, 0);
+  if (!AS.glosa.trim()) { toast('Poné una glosa'); return; } if (L.length < 2 || d !== h || !d) { toast('El asiento debe tener al menos 2 líneas y cuadrar'); return; }
+  await put('asientos', 'as-' + uid(), {fecha:AS.fecha, glosa:AS.glosa.trim(), lineas:L, por:S.me, at:now()});
+  document.querySelector('.as-ov')?.remove(); AS = null; toast('Asiento registrado');
+}
+async function anularAsiento(id){ const a = (S.asientos || []).find(x => x.id === id); if (!a) return; if (!(await dialog('Anular asiento', `¿Anular "${esc(a.glosa)}"?`, 'Anular'))) return; const d = {...a}; delete d.id; d.anulado = true; d.anuladoPor = S.me; await put('asientos', id, d); }
+function ctMayor(){
+  const A = libroDiario(); const ctas = planCuentas().filter(c => esImputable(c.codigo));
+  let saldo = 0; const L = []; A.forEach(a => a.lineas.filter(l => l.cta === S.ct.cta).forEach(l => { saldo += l.debe - l.haber; L.push({a, l, saldo}); }));
+  const acreedora = /^(2|3|4)/.test(S.ct.cta);
+  return `<div class="row" style="margin-bottom:12px"><select class="in" style="width:auto;max-width:100%" onchange="S.ct.cta=this.value;render()">${ctas.map(c => `<option value="${c.codigo}" ${S.ct.cta===c.codigo?'selected':''}>${c.codigo} ${esc(c.nombre)}</option>`).join('')}</select>
+    <span>Saldo: <b class="num">${gs(acreedora ? -saldo : saldo)}</b> <span class="small muted">${acreedora ? '(acreedor)' : '(deudor)'}</span></span></div>
+  <div class="card">${L.length ? `<table class="t" style="font-size:13.5px"><thead><tr><th>Fecha</th><th>Detalle</th><th class="r">Debe</th><th class="r">Haber</th><th class="r">Saldo</th></tr></thead><tbody>
+    ${L.map(x => `<tr><td class="small">${fDate(x.a.fecha)}</td><td>${esc(x.a.glosa)}</td><td class="r num">${x.l.debe ? fmtN(x.l.debe) : ''}</td><td class="r num">${x.l.haber ? fmtN(x.l.haber) : ''}</td><td class="r num">${fmtN(acreedora ? -x.saldo : x.saldo)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sin movimientos en esta cuenta.</div>'}</div>`;
+}
+function ctPlan(){
+  const P = planCuentas();
+  return `<div class="card"><div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Plan de cuentas</h2><p class="small muted" style="margin:2px 0 0">Plan simplificado para que el contador lo ajuste. Las cuentas base no se borran (sí se pueden renombrar).</p></div>${S.canAdmin ? `<button class="btn pri sm" onclick="editarCta()">+ Cuenta</button>` : ''}</div>
+  <table class="t" style="font-size:13.5px"><tbody>${P.map(c => `<tr><td style="padding-left:${(c.codigo.split('.').length - 1) * 18 + 12}px">${esImputable(c.codigo) ? '' : '<b>'}${c.codigo} ${esc(c.nombre)}${esImputable(c.codigo) ? '' : '</b>'}</td><td class="small muted">${esImputable(c.codigo) ? claseCta(c.codigo) : ''}</td><td class="r">${S.canAdmin && esImputable(c.codigo) ? `<button class="btn sm ghost" onclick="editarCta('${c.codigo}')">Editar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+async function editarCta(cod){
+  const c = cod ? planCuentas().find(x => x.codigo === cod) : {};
+  const r = await dialog(cod ? 'Editar cuenta' : 'Nueva cuenta', `<div class="grid2"><label class="f">Código *<span class="h">Formato x.x.xx, ej. 6.1.10</span><input class="in" id="pc-c" value="${esc(c.codigo || '')}" ${cod ? 'disabled' : ''}></label><label class="f">Nombre *<input class="in" id="pc-n" value="${esc(c.nombre || '')}"></label></div>
+    <p class="small muted">El primer número define el tipo: 1 activo, 2 pasivo, 3 patrimonio, 4 ingreso, 5 costo, 6.1 gasto operativo, 6.2 depreciación, 6.3 financiero, 6.4 impuesto a la renta.</p>
+    ${cod && !c.base ? `<label class="row small"><input type="checkbox" id="pc-i"> Desactivar esta cuenta</label>` : ''}`, 'Guardar', () => {
+      const k = cod || $('#pc-c').value.trim(), n = $('#pc-n').value.trim();
+      if (!/^[1-6]\.\d\.\d{2}$/.test(k)) { toast('Código inválido: usá el formato 6.1.10'); return false; }
+      if (!cod && planCuentas().some(x => x.codigo === k)) { toast('Ese código ya existe'); return false; }
+      if (!n) { toast('Poné un nombre'); return false; }
+      return {codigo:k, nombre:n, inactiva: $('#pc-i') ? $('#pc-i').checked : false}; });
+  if (r) await put('plan', r.codigo, {...r, actualizado:now()});
+}
+
+/* ===== menú "Más" para celular ===== */
+function viewMenu(){
+  return `<div class="top"><div><h1>Menú</h1></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${ROUTES.filter(r => r.k !== 'menu').map(r => `<a href="#${r.k}" class="card pad" style="text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:8px;align-items:flex-start"><span style="width:26px;height:26px;color:var(--accent)">${IC[r.ic]}</span><b>${r.n}</b></a>`).join('')}</div>`;
+}
 
 /* ============ arranque ============ */
 (function(){ const h = location.hash.slice(1); S.route = ROUTES.some(r => r.k === h) ? h : 'tablero'; })();
