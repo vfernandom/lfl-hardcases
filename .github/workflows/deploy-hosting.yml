@@ -1,0 +1,63 @@
+# Publica automáticamente en el hosting de LFL cada vez que hay cambios en main.
+#   - Web de LFL      -> https://lflhardcase.com.py          (public_html/)
+#   - LFL Gestión     -> https://gestion.lflhardcase.com.py  (public_html/gestion/)
+#
+# Requiere 3 secretos en GitHub (Settings -> Secrets and variables -> Actions):
+#   FTP_SERVER    ej. ftp.lflhardcase.com.py
+#   FTP_USERNAME  usuario FTP del hosting
+#   FTP_PASSWORD  contraseña FTP del hosting
+name: Publicar en hosting
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "0*_*.png"
+      - "sistema.html"
+      - "plantilla_catalogo_LFL.xlsx"
+      - "branding/**"
+      - "scripts/build_hosting.py"
+      - ".github/workflows/deploy-hosting.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FTP_READY: ${{ secrets.FTP_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Armar archivos (y aplicar marca LFL Gestión)
+        run: python3 scripts/build_hosting.py
+
+      - name: Avisar si faltan los secretos FTP
+        if: env.FTP_READY != 'true'
+        run: echo "::warning::Faltan los secretos FTP_SERVER / FTP_USERNAME / FTP_PASSWORD. No se publicó nada."
+
+      - name: Subir web de LFL
+        if: env.FTP_READY == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/site/
+          server-dir: ./public_html/
+
+      - name: Subir LFL Gestión
+        if: env.FTP_READY == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/gestion/
+          server-dir: ./public_html/gestion/
