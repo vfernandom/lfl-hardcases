@@ -604,14 +604,14 @@ function itemDesdeProducto(prod, cant){
 }
 function lineasGeo(l, a, h){
   l=+l||0; a=+a||0; h=+h||0;
-  const area = 2*(l*a + l*h + a*h)/10000, arist = 4*(l + a + h)/100;
+  const area = 2*(l*a + l*h + a*h)/1e6, arist = 4*(l + a + h)/1000; // medidas en milímetros
   const q = {placa: area, espuma: area, perfil: arist, ...GEO_FIJAS};
   const out = [];
   Object.entries(q).forEach(([rol, cant]) => { const m = matByRol(rol); if (m) out.push({materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0, cant:Math.round(cant*100)/100}); });
   return out;
 }
 function itemMedida(l, a, h, cant, horas){
-  return {id:uid(), tipo:'medida', codigo:'A medida', nombre:'Case a medida', medidas: (l&&a&&h) ? `${l} × ${a} × ${h} cm` : '', dims:{l,a,h}, cantidad:cant||1, horas:+horas||0, lineas: (l&&a&&h) ? lineasGeo(l,a,h) : [], geo:true};
+  return {id:uid(), tipo:'medida', codigo:'A medida', nombre:'Case a medida', medidas: (l&&a&&h) ? `${l} × ${a} × ${h} mm` : '', dims:{l,a,h,u:'mm'}, cantidad:cant||1, horas:+horas||0, lineas: (l&&a&&h) ? lineasGeo(l,a,h) : [], geo:true};
 }
 
 function viewEditor(){
@@ -651,10 +651,10 @@ function viewEditor(){
           <label class="row small" style="gap:6px">Horas/u<input class="in r" style="width:76px" type="number" min="0" step="0.25" data-b="items.${i}.horas" value="${esc(it.horas)}"></label>
           <button class="x" title="Quitar" onclick="rmItem(${i})">×</button></div>
         <div class="item-b">
-          ${it.tipo === 'medida' ? `<div class="row small" style="margin-bottom:10px;gap:8px">Medidas (cm)
-            <input class="in r" style="width:72px" type="number" placeholder="Largo" data-b="items.${i}.dims.l" value="${esc(it.dims&&it.dims.l||'')}">×
-            <input class="in r" style="width:72px" type="number" placeholder="Ancho" data-b="items.${i}.dims.a" value="${esc(it.dims&&it.dims.a||'')}">×
-            <input class="in r" style="width:72px" type="number" placeholder="Alto" data-b="items.${i}.dims.h" value="${esc(it.dims&&it.dims.h||'')}">
+          ${it.tipo === 'medida' ? `<div class="row small" style="margin-bottom:10px;gap:8px">Medidas (mm)
+            <input class="in r" style="width:88px" type="number" placeholder="Largo" data-b="items.${i}.dims.l" value="${esc(it.dims&&it.dims.l||'')}">×
+            <input class="in r" style="width:88px" type="number" placeholder="Ancho" data-b="items.${i}.dims.a" value="${esc(it.dims&&it.dims.a||'')}">×
+            <input class="in r" style="width:88px" type="number" placeholder="Alto" data-b="items.${i}.dims.h" value="${esc(it.dims&&it.dims.h||'')}">
             <button class="btn sm" onclick="recalcGeo(${i})">Estimar materiales</button></div>
             ${it.geo && it.lineas.length ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Cantidades estimadas por geometría (superficie y aristas de la caja + herrajes estándar). Revisalas antes de aprobar.</div></div>` : ''}` : (it.medidas ? `<div class="small muted" style="margin-bottom:8px">Medidas: ${esc(it.medidas)}</div>` : '')}
           ${!(+it.horas) ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Falta el tiempo de fabricación: sin horas no se calcula mano de obra ni gastos de fábrica.</div></div>` : ''}
@@ -738,7 +738,7 @@ document.addEventListener('change', e => {
   if (t.dataset.mat) { const [i,j] = t.dataset.mat.split('.').map(Number); const m = matById(t.value); if (m) { Object.assign(S.draft.items[i].lineas[j], {materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0}); render(); } }
 });
 function addMedida(){ S.draft.items.push(itemMedida('', '', '', 1, '')); render(); }
-function recalcGeo(i){ const it = S.draft.items[i]; const {l,a,h} = it.dims||{}; if (!(l&&a&&h)) { toast('Completá largo, ancho y alto.'); return; } it.lineas = lineasGeo(l,a,h); it.medidas = `${l} × ${a} × ${h} cm`; it.geo = true; if (!it.lineas.length) toast('No hay materiales con rol asignado en el catálogo.'); render(); }
+function recalcGeo(i){ const it = S.draft.items[i]; const {l,a,h} = it.dims||{}; if (!(l&&a&&h)) { toast('Completá largo, ancho y alto.'); return; } it.dims.u = 'mm'; it.lineas = lineasGeo(l,a,h); it.medidas = `${l} × ${a} × ${h} mm`; it.geo = true; if (!it.lineas.length) toast('No hay materiales con rol asignado en el catálogo.'); render(); }
 function rmItem(i){ S.draft.items.splice(i,1); render(); }
 function addLinea(i){ S.draft.items[i].lineas.push({materialId:'', nombre:'', unidad:'', precio:0, cant:1}); render(); }
 function rmLinea(i,j){ S.draft.items[i].lineas.splice(j,1); render(); }
@@ -914,7 +914,9 @@ function editPres(id){
   const p = S.presupuestos.find(x => x.id === id); if (!p) return;
   const last = (p.versiones||[])[p.versiones.length-1] || {};
   S.editId = id;
-  S.draft = {cliente:clone(p.cliente), items:clone(last.items||[]).map(i => ({...i, id:i.id||uid()})), adicionales:clone(last.adicionales||[]), margen:last.margen ?? P().margenObjetivo ?? 35, descuento:last.descuento||0, notas:last.notas||'', motivoCambio:''};
+  S.draft = {cliente:clone(p.cliente), items:clone(last.items||[]).map(i => { const it = {...i, id:i.id||uid()};
+      if (it.tipo === 'medida' && it.dims && it.dims.u !== 'mm' && it.dims.l) { ['l','a','h'].forEach(k => it.dims[k] = Math.round(+it.dims[k] * 10)); it.dims.u = 'mm'; it.medidas = `${it.dims.l} × ${it.dims.a} × ${it.dims.h} mm`; }
+      return it; }), adicionales:clone(last.adicionales||[]), margen:last.margen ?? P().margenObjetivo ?? 35, descuento:last.descuento||0, notas:last.notas||'', motivoCambio:''};
   // precios de materiales actualizados al catálogo vigente
   S.draft.items.forEach(it => (it.lineas||[]).forEach(l => { const m = matById(l.materialId); if (m) { l.precio = +m.precio||0; l.nombre = m.nombre; l.unidad = m.unidad; } }));
   S.detailId = null; $('#view').dataset.sig = ''; go('nuevo');
@@ -1027,7 +1029,7 @@ async function editProd(id){
   const r = await dialog(id ? 'Editar producto' : 'Nuevo producto', `<div style="display:flex;flex-direction:column;gap:10px;max-height:65vh;overflow:auto">
     <div class="grid2"><label class="f">Código *<input class="in" id="pC" value="${esc(p.codigo)}" placeholder="GC1"></label><label class="f">Horas de fabricación *<input class="in r" type="number" step="0.25" id="pH" value="${esc(p.horas)}"></label></div>
     <label class="f">Nombre *<input class="in" id="pN" value="${esc(p.nombre)}"></label>
-    <div class="grid2"><label class="f">Medidas estándar<input class="in" id="pM" value="${esc(p.medidas)}" placeholder="L × A × H cm"></label><label class="f">Precio actual (₲)<span class="h">Opcional, para comparar</span><input class="in r" type="number" id="pPA" value="${esc(p.precioActual||'')}"></label></div>
+    <div class="grid2"><label class="f">Medidas estándar<input class="in" id="pM" value="${esc(p.medidas)}" placeholder="L × A × H mm"></label><label class="f">Precio actual (₲)<span class="h">Opcional, para comparar</span><input class="in r" type="number" id="pPA" value="${esc(p.precioActual||'')}"></label></div>
     <div><b class="small">Materiales por unidad</b><table class="lines"><tbody id="pBom">${bomRows()}</tbody></table><button class="btn sm ghost" id="pAddB">+ Material</button></div>
     <div class="grid2"><label class="f">IVA del producto<select class="in" id="pIva">${[['','Usar el general'],['10','10%'],['5','5%'],['0','Exento']].map(([k,n]) => `<option value="${k}" ${String(p.tasaIva ?? '')===k?'selected':''}>${n}</option>`).join('')}</select></label>
     <label class="f">Notas<input class="in" id="pNo" value="${esc(p.notas||'')}"></label></div>
@@ -1122,7 +1124,7 @@ async function chatStep(v, t){
   }
   if (s === 'tel') { if (v !== 'omitir') c.cliente.telefono = t.replace(/[^\d+]/g, ''); c.items = []; c.adicionales = []; return askProducto(); }
   if (s === 'producto') {
-    if (v === 'medida' || /medida/i.test(t||'')) { c.cur = {tipo:'medida'}; ask('dims', 'Indicame las medidas interiores en cm: largo × ancho × alto (ej. 110x40x15).'); return drawChat(); }
+    if (v === 'medida' || /medida/i.test(t||'')) { c.cur = {tipo:'medida'}; ask('dims', 'Indicame las medidas interiores en milímetros: largo × ancho × alto (ej. 1100x400x150).'); return drawChat(); }
     const pr = S.productos.find(p => p.id === v) || S.productos.find(p => String(p.codigo).toLowerCase() === String(t).trim().toLowerCase());
     if (!pr) { ask('producto', 'No encontré ese producto. Elegí uno de la lista o “A medida”.', prodChips()); return drawChat(); }
     c.cur = {tipo:'producto', prod:pr};
@@ -1131,10 +1133,10 @@ async function chatStep(v, t){
   }
   if (s === 'dims') {
     const n = String(t).replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/);
-    if (!n) { ask('dims', 'No pude leer las medidas. Escribilas así: 110x40x15'); return drawChat(); }
+    if (!n) { ask('dims', 'No pude leer las medidas. Escribilas en mm así: 1100x400x150'); return drawChat(); }
     c.cur.dims = {l:+n[1], a:+n[2], h:+n[3]};
     if (!S.materiales.some(m => ['placa','perfil'].includes(m.rol))) bot('⚠️ El catálogo no tiene materiales con rol placa/perfil; la estimación de materiales va a quedar incompleta.');
-    ask('horas', `Medidas ${n[1]} × ${n[2]} × ${n[3]} cm. ¿Cuántas horas de fabricación estimás por unidad?`); return drawChat();
+    ask('horas', `Medidas ${n[1]} × ${n[2]} × ${n[3]} mm. ¿Cuántas horas de fabricación estimás por unidad?`); return drawChat();
   }
   if (s === 'horas') { const h = pf(t); if (!(h > 0)) { ask('horas', 'Necesito un número de horas mayor a 0 (ej. 6 o 7,5).'); return drawChat(); } c.cur.horas = h; ask('cant', '¿Cuántas unidades?', [{l:'1',v:'1'},{l:'2',v:'2'},{l:'5',v:'5'},{l:'10',v:'10'}]); return drawChat(); }
   if (s === 'cant') {

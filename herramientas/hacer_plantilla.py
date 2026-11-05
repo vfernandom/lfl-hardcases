@@ -40,7 +40,7 @@ lines = [
  ('• IVA del producto: 10, 5 o Exento. Vacío = usa el IVA general de la app.', None),
  ('', None),
  ('Ejemplo de un producto completo (NO se importa desde esta hoja)', 'h'),
- ('Productos →  GC1 | Estuche guitarra clásica | 105 × 42 × 14 cm | 6 | 10 | 650000 | Interior de espuma negra', None),
+ ('Productos →  GC1 | Estuche guitarra clásica | 1050 × 420 × 140 mm | 6 | 10 | 650000 | Interior de espuma negra', None),
  ('Recetas   →  GC1 | Placa fenólico 9 mm | 1,6', None),
  ('              GC1 | Perfil aluminio unión | 6,4', None),
  ('              GC1 | Cierre mariposa | 2', None),
