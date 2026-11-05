@@ -144,8 +144,20 @@ Presupuesto → *Aprobado por el cliente* (cómo aprobó, N° de OC, link a la e
 
 **Reglas nuevas:**
 - El stock solo cambia por documentos: compras, entregas a OT, devoluciones, producción, entregas, ajustes, conteo físico y bajas. Kardex por material con costo promedio ponderado.
-- Compras en dólares: se carga el tipo de cambio de la factura y se registra en guaraníes. La diferencia de cambio al pagar **no** se calcula: consultar al contador.
+- Compras en dólares: se carga el tipo de cambio de la factura y se registra en guaraníes. La orden de pago se aprueba en USD y al pagar se carga el tipo de cambio del día (hasta ±10% del estimado); la diferencia de cambio se contabiliza sola (requiere `06_usd.sql`).
 - Anticipo: en *Configuración → Parámetros* se puede exigir el anticipo cobrado para liberar una OT (un socio autoriza excepciones).
 - **Cierre de mes** (*Configuración → Cierre de mes*): un mes cerrado no acepta cargas, cambios ni borrados de caja, compras, stock ni asientos, ni siquiera del administrador. Cierra cualquier socio; reabre solo un administrador. Lo controla la base de datos, no solo la app.
 - Presupuestos aprobados **antes** de esta actualización siguen descontando materiales como antes. Si querés seguirlos por OT, abrilos y tocá *Generar órdenes de trabajo*.
 - La dirección vieja `presupuestos.html` ahora redirige a `sistema.html`.
+
+### Actualización: documentos PDF, anticipos, avisos, pagos en dólares y respaldo
+1. Supabase → **SQL Editor** → pegá [06_usd.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/06_usd.sql) → **Run** (habilita pagar órdenes en dólares con el tipo de cambio del día).
+2. **Configuración → Parámetros → Datos de la empresa para los PDF**: RUC, dirección, teléfono, email y condiciones al pie del presupuesto.
+
+**Qué hay nuevo:**
+- **Presupuesto en PDF** con la marca LFL (botón ⬇ PDF en la ficha; en el celular *Compartir PDF* abre WhatsApp u otra app). Sin aprobar sale con marca de agua "BORRADOR".
+- **Recibo de cobro en PDF** (numerado REC-00001…) al registrar un cobro, desde la ficha del presupuesto o desde Caja → Movimientos. Monto en letras y saldo pendiente.
+- **Constancia de entrega en PDF** al entregar una OT, para que firme el cliente. Es interna: no reemplaza la nota de remisión cuando sea obligatoria.
+- **Anticipos**: lo cobrado antes de facturar queda en *Anticipos de clientes* (pasivo) y se aplica solo a la factura cuando se emite.
+- **Avisos**: el Tablero muestra "Para hacer" según el usuario (OP por aprobar, presupuestos por aprobar, ventas sin facturar, OT atrasadas, faltantes, seguimiento). Número en rojo en el menú y notificaciones del navegador mientras la app está abierta.
+- **Respaldo**: Configuración → Parámetros → *Respaldo de datos* (JSON completo y Excel con libro diario para el contador). El plan gratuito de Supabase no guarda respaldos descargables: hacelo una vez por semana.
