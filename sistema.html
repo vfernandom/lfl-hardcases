@@ -938,7 +938,8 @@ function viewCatalogo(){
   if (S.catTab === 'mat') body = viewMateriales(ro);
   if (S.catTab === 'prod') body = viewProductos(ro);
   if (S.catTab === 'usr') body = viewUsuarios();
-  return `<div class="top"><div><h1>Catálogo y costos</h1><p>La base de precios y reglas que usa el cálculo. Solo los socios pueden modificarla.</p></div></div>
+  return `<div class="top"><div><h1>Catálogo y costos</h1><p>La base de precios y reglas que usa el cálculo. Solo los socios pueden modificarla.</p></div>
+    <div class="row"><a class="btn sm" href="plantilla_catalogo_LFL.xlsx" download>⬇ Plantilla Excel</a><button class="btn sm" onclick="exportarCatalogo()">⬇ Exportar a Excel</button>${S.canAdmin ? `<button class="btn sm pri" onclick="importarCatalogo()">⬆ Importar desde Excel</button>` : ''}</div></div>
   ${ro ? `<div class="note info" style="margin-bottom:14px">${IC.info}<div>Estás en modo lectura. ${esSupa() ? 'Solo los socios pueden editar costos y productos.' : 'Para editar, un socio debe darte acceso de <b>Editor</b> al compartir la app.'}</div></div>` : ''}
   <div class="seg" style="margin-bottom:16px">${tabs.map(([k,n]) => `<button class="${S.catTab===k?'on':''}" onclick="S.catTab='${k}';render()">${n}</button>`).join('')}</div>
   ${loadingOr(body)}`;
@@ -2433,6 +2434,137 @@ async function cambiarPermiso(id, campo, valor){
   const { error } = await S.sb.from('perfiles').update({ [campo]: valor }).eq('user_id', id);
   if (error) { toast('No se pudo cambiar: ' + error.message.replace(/^.*?: /, '')); render(); return; }
   const u = S.perfiles.find(x => x.user_id === id); if (u) u[campo] = valor; aplicarPerfiles(); render(); toast('Permiso actualizado');
+}
+
+
+/* ============ IMPORTAR / EXPORTAR CATÁLOGO (Excel) ============ */
+const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+function cargarXLSX(){ return window.XLSX ? Promise.resolve(window.XLSX) : new Promise((ok, mal) => { const s = document.createElement('script'); s.src = XLSX_URL; s.onload = () => ok(window.XLSX); s.onerror = () => mal(new Error('No se pudo cargar el lector de Excel. Revisá la conexión.')); document.head.appendChild(s); }); }
+const ROL_TXT = {placa:'Placa', perfil:'Perfil', espuma:'Espuma', cierre:'Cierre', manija:'Manija', bisagra:'Bisagra', esquinero:'Esquinero', consumible:'Consumibles', otro:'Otro'};
+function rolDeTexto(t){ const n = normTxt(t); if (!n) return 'otro'; if (n.startsWith('consum')) return 'consumible'; const k = Object.keys(ROL_TXT).find(k => n.startsWith(k)); return k || 'otro'; }
+function numXls(v){
+  if (typeof v === 'number') return v; let s = String(v ?? '').replace(/[₲Gg$\s]/g, '').replace(/s\.?$/i, '');
+  if (!s) return NaN;
+  if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) s = s.replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  return parseFloat(s);
+}
+function filasHoja(wb, nombre){
+  const hn = wb.SheetNames.find(n => normTxt(n) === normTxt(nombre)); if (!hn) return null;
+  const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[hn], {header:1, defval:'', raw:true});
+  if (!rows.length) return [];
+  const head = rows[0].map(normTxt);
+  return rows.slice(1).map((r, i) => ({fila: i + 2, r})).filter(x => x.r.some(c => String(c).trim() !== '') && !['obligatorio','opcional'].includes(normTxt(x.r[0])))
+    .map(x => { const o = {_fila: x.fila}; head.forEach((h, j) => o[h] = x.r[j]); return o; });
+}
+const col = (o, ...pref) => { const k = Object.keys(o).find(k => pref.some(p => k.startsWith(p))); return k ? o[k] : ''; };
+
+function analizarCatalogo(wb){
+  const R = {matN:[], matU:[], proN:[], proU:[], errores:[], avisos:[], recetas:{}};
+  const mats = filasHoja(wb, 'Materiales') || [], pros = filasHoja(wb, 'Productos') || [], recs = filasHoja(wb, 'Recetas') || [];
+  if (!mats.length && !pros.length && !recs.length) { R.errores.push('El archivo no tiene datos en las hojas Materiales, Productos o Recetas. ¿Es la plantilla de LFL?'); return R; }
+  const porNombre = new Map(S.materiales.map(m => [normTxt(m.nombre), m]));
+  const vistos = new Set();
+  mats.forEach(o => {
+    const nombre = String(col(o, 'material', 'nombre')).trim(), unidad = String(col(o, 'unidad')).trim(), precio = numXls(col(o, 'precio')), rol = rolDeTexto(col(o, 'rol')), prov = String(col(o, 'proveedor')).trim();
+    const k = normTxt(nombre); const f = `Materiales fila ${o._fila}`;
+    if (!nombre) { R.errores.push(`${f}: falta el nombre.`); return; }
+    if (vistos.has(k)) { R.errores.push(`${f}: "${nombre}" está repetido en el archivo.`); return; } vistos.add(k);
+    if (!unidad) { R.errores.push(`${f}: falta la unidad de "${nombre}".`); return; }
+    if (!(precio >= 0)) { R.errores.push(`${f}: precio inválido para "${nombre}" (${col(o,'precio')}).`); return; }
+    const ex = porNombre.get(k); const data = {nombre, rol, unidad, precio:Math.round(precio), proveedor:prov, ejemplo:false};
+    if (ex) { const cambios = ['nombre','rol','unidad','precio','proveedor'].filter(c => String(ex[c] ?? '') !== String(data[c] ?? '')); if (cambios.length || ex.ejemplo) R.matU.push({id:ex.id, data:{...((({id, ...x}) => x)(ex)), ...data, actualizado:now()}, antes:ex, cambios}); }
+    else R.matN.push({id:'m-' + uid(), data:{...data, creado:now()}});
+  });
+  // materiales disponibles para recetas = app + archivo
+  const matFinal = new Map(S.materiales.map(m => [normTxt(m.nombre), m.id])); R.matN.forEach(m => matFinal.set(normTxt(m.data.nombre), m.id));
+  const porCod = new Map(S.productos.map(p => [normTxt(p.codigo), p]));
+  const codArchivo = new Set();
+  pros.forEach(o => {
+    const cod = String(col(o, 'codigo')).trim().toUpperCase(), nombre = String(col(o, 'nombre')).trim(), horas = numXls(col(o, 'horas')), ivaT = normTxt(col(o, 'iva'));
+    const f = `Productos fila ${o._fila}`;
+    if (!cod) { R.errores.push(`${f}: falta el código.`); return; }
+    if (codArchivo.has(cod)) { R.errores.push(`${f}: el código ${cod} está repetido.`); return; } codArchivo.add(cod);
+    if (!nombre) { R.errores.push(`${f}: falta el nombre de ${cod}.`); return; }
+    if (!(horas > 0)) { R.errores.push(`${f}: horas inválidas para ${cod} (${col(o,'horas')}).`); return; }
+    const tasaIva = !ivaT ? null : ivaT.startsWith('ex') || ivaT === '0' ? 0 : +ivaT === 5 ? 5 : +ivaT === 10 ? 10 : 'X';
+    if (tasaIva === 'X') { R.errores.push(`${f}: IVA debe ser 10, 5 o Exento (${col(o,'iva')}).`); return; }
+    const pa = numXls(col(o, 'precio'));
+    const data = {codigo:cod, nombre, medidas:String(col(o, 'medida')).trim(), horas, tasaIva, precioActual: pa > 0 ? Math.round(pa) : null, notas:String(col(o, 'nota')).trim()};
+    const ex = porCod.get(normTxt(cod));
+    if (ex) R.proU.push({id:ex.id, data:{...((({id, ...x}) => x)(ex)), ...data, actualizado:now()}, antes:ex});
+    else R.proN.push({id:'p-' + uid(), data:{...data, bom:[], creado:now()}});
+  });
+  recs.forEach(o => {
+    const cod = String(col(o, 'codigo')).trim().toUpperCase(), mat = String(col(o, 'material')).trim(), cant = numXls(col(o, 'cantidad'));
+    const f = `Recetas fila ${o._fila}`;
+    if (!cod || !mat) { R.errores.push(`${f}: falta código de producto o material.`); return; }
+    const mid = matFinal.get(normTxt(mat)); if (!mid) { R.errores.push(`${f}: el material "${mat}" no existe (cargalo en la hoja Materiales).`); return; }
+    if (!(cant > 0)) { R.errores.push(`${f}: cantidad inválida (${col(o,'cantidad')}).`); return; }
+    if (!codArchivo.has(cod) && !porCod.has(normTxt(cod))) { R.errores.push(`${f}: el producto ${cod} no existe (cargalo en la hoja Productos).`); return; }
+    (R.recetas[cod] = R.recetas[cod] || []).push({materialId:mid, cant});
+  });
+  // aplicar recetas
+  Object.entries(R.recetas).forEach(([cod, bom]) => {
+    let x = R.proN.find(p => p.data.codigo === cod) || R.proU.find(p => p.data.codigo === cod);
+    if (!x) { const ex = porCod.get(normTxt(cod)); x = {id:ex.id, data:{...((({id, ...y}) => y)(ex)), actualizado:now()}, antes:ex}; R.proU.push(x); }
+    x.data.bom = bom; x.recetaNueva = true;
+  });
+  // descartar productos sin cambios reales
+  const firma = d => JSON.stringify([d.codigo, d.nombre, d.medidas || '', +d.horas || 0, d.tasaIva ?? null, d.precioActual || null, d.notas || '', (d.bom || []).map(b => [b.materialId, +b.cant])]);
+  R.proU = R.proU.filter(x => { const igual = firma(x.data) === firma(x.antes); if (x.recetaNueva) x.recetaNueva = JSON.stringify((x.data.bom || []).map(b => [b.materialId, +b.cant])) !== JSON.stringify((x.antes.bom || []).map(b => [b.materialId, +b.cant])); return !igual; });
+  R.proN.filter(p => !p.data.bom.length).forEach(p => R.avisos.push(`${p.data.codigo} no tiene materiales en la hoja Recetas: su costo de materiales va a ser 0.`));
+  return R;
+}
+async function importarCatalogo(){
+  if (!S.canAdmin) { toast('Solo los socios pueden importar el catálogo'); return; }
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    let R;
+    try { const X = await cargarXLSX(); const wb = X.read(await f.arrayBuffer(), {type:'array'}); R = analizarCatalogo(wb); }
+    catch(e) { toast('No se pudo leer el archivo: ' + e.message); return; }
+    const lista = (t, arr, fn) => arr.length ? `<details ${arr.length <= 8 ? 'open' : ''}><summary><b>${t} (${arr.length})</b></summary><ul class="small" style="margin:4px 0 8px;padding-left:18px">${arr.map(fn).join('')}</ul></details>` : '';
+    const total = R.matN.length + R.matU.length + R.proN.length + R.proU.length;
+    const ok = await dialog(`Importar ${esc(f.name)}`, `<div style="max-height:60vh;overflow:auto">
+      ${R.errores.length ? `<div class="note bad" style="margin-bottom:10px">${IC.warn}<div><b>${R.errores.length} error${R.errores.length > 1 ? 'es' : ''}</b> (esas filas no se importan):<ul style="margin:4px 0 0;padding-left:16px">${R.errores.slice(0, 30).map(e => `<li>${esc(e)}</li>`).join('')}${R.errores.length > 30 ? `<li>…y ${R.errores.length - 30} más</li>` : ''}</ul></div></div>` : ''}
+      ${R.avisos.length ? `<div class="note warn" style="margin-bottom:10px">${IC.warn}<div>${R.avisos.map(esc).join('<br>')}</div></div>` : ''}
+      ${lista('Materiales nuevos', R.matN, m => `<li>${esc(m.data.nombre)} · ${esc(m.data.unidad)} · ${gs(m.data.precio)}</li>`)}
+      ${lista('Materiales que se actualizan', R.matU, m => `<li>${esc(m.data.nombre)}${m.cambios.includes('precio') ? ` · precio ${gs(m.antes.precio)} → <b>${gs(m.data.precio)}</b>` : ''}${m.cambios.filter(c => c !== 'precio').length ? ' · cambia ' + m.cambios.filter(c => c !== 'precio').join(', ') : ''}${!m.cambios.length && m.antes.ejemplo ? ' · deja de ser "ejemplo"' : ''}</li>`)}
+      ${lista('Productos nuevos', R.proN, p => `<li><b>${esc(p.data.codigo)}</b> ${esc(p.data.nombre)} · ${fmtN(p.data.horas, 2)} h · ${p.data.bom.length} materiales</li>`)}
+      ${lista('Productos que se actualizan', R.proU, p => `<li><b>${esc(p.data.codigo)}</b> ${esc(p.data.nombre)}${p.recetaNueva ? ` · receta reemplazada (${p.data.bom.length} materiales)` : ''}</li>`)}
+      ${!total ? '<p>No hay cambios para importar.</p>' : '<p class="small muted" style="margin:6px 0 0">Nada se borra. Los presupuestos ya guardados no cambian; los nuevos usan los precios actualizados.</p>'}</div>`, total ? `Importar ${total} registro${total > 1 ? 's' : ''}` : 'Cerrar');
+    if (!ok || !total) return;
+    try {
+      await guardarVarios('materiales', [...R.matN, ...R.matU]);
+      await guardarVarios('productos', [...R.proN, ...R.proU]);
+      toast(`Catálogo actualizado: ${total} registro${total > 1 ? 's' : ''}`);
+    } catch(e) { toast('Error al guardar: ' + (e.message || e)); }
+  };
+  inp.click();
+}
+async function guardarVarios(colec, items){
+  if (!items.length) return;
+  if (S.mode === 'supa') {
+    for (let i = 0; i < items.length; i += 200) {
+      const lote = items.slice(i, i + 200).map(x => ({col:colec, id:x.id, data:x.data}));
+      const { error } = await S.sb.from('docs').upsert(lote); if (error) throw new Error(/row-level|policy/i.test(error.message) ? 'sin permiso (solo socios)' : error.message);
+      lote.forEach(aplicarDoc);
+    }
+    render(); return;
+  }
+  for (const x of items) await put(colec, x.id, x.data);
+}
+async function exportarCatalogo(){
+  let X; try { X = await cargarXLSX(); } catch(e) { toast(e.message); return; }
+  const wb = X.utils.book_new();
+  const nm = id => (matById(id) || {}).nombre || '';
+  const hoja = (nombre, cab, filas, anchos) => { const ws = X.utils.aoa_to_sheet([cab, cab.map(() => ''), ...filas]); ws['!cols'] = anchos.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, nombre); };
+  hoja('Materiales', ['Material','Rol','Unidad','Precio unitario ₲ (costo sin IVA)','Proveedor'], S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).map(m => [m.nombre, ROL_TXT[m.rol] || 'Otro', m.unidad, +m.precio || 0, m.proveedor || '']), [36,14,10,26,28]);
+  hoja('Productos', ['Código','Nombre','Medidas estándar','Horas por unidad','IVA','Precio actual ₲','Notas'], S.productos.map(p => [p.codigo, p.nombre, p.medidas || '', +p.horas || 0, p.tasaIva == null ? '' : (+p.tasaIva === 0 ? 'Exento' : +p.tasaIva), p.precioActual || '', p.notas || '']), [12,34,22,16,10,18,36]);
+  hoja('Recetas', ['Código producto','Material','Cantidad por unidad'], S.productos.flatMap(p => (p.bom || []).map(b => [p.codigo, nm(b.materialId), +b.cant])), [18,36,20]);
+  X.writeFile(wb, `catalogo_LFL_${hoyISO()}.xlsx`);
 }
 
 /* ============ arranque ============ */
