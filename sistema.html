@@ -216,6 +216,7 @@ table.t{width:100%;border-collapse:collapse}
   .t{font-size:14px}
   .t .num b{font-size:13.5px}
 }
+@media (max-width:760px){.wa-grid{grid-template-columns:1fr!important}}
 @media (max-width:420px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
 </style>
 </head>
@@ -357,7 +358,7 @@ function paramSnap(P){ const s = {}; ['tarifaHora','gastosMensuales','horasProdu
 /* ============ estado ============ */
 const S = {
   mode:'loading', db:null, user:null, me:null, canAdmin:false, canWrite:true, names:{},
-  params:null, materiales:[], productos:[], presupuestos:[], clientes:[], plan:[], fondos:[], proveedores:[], compras:[], ordenes:[], movimientos:[], asientos:[], stockajustes:[], ots:[], stockmovs:[], reglas:null, cierres:null, got:{}, facturas:[], perfiles:[], sb:null, email:'',
+  params:null, materiales:[], productos:[], presupuestos:[], clientes:[], plan:[], fondos:[], proveedores:[], compras:[], ordenes:[], movimientos:[], asientos:[], stockajustes:[], ots:[], stockmovs:[], wachats:[], wamsgs:[], reglas:null, cierres:null, got:{}, facturas:[], perfiles:[], sb:null, email:'',
   route:'tablero', detailId:null, detailV:null, draft:null, editId:null,
   f:{per:'90', prod:'', com:'', est:''}, lf:{est:'abiertos', q:''}, catTab:'param',
 };
@@ -389,7 +390,7 @@ async function init(){
     S.mode = 'mem'; S.canAdmin = true; S.esAdmin = true; S.apruebaOP = true;
     let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {}
     if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; S.clientes = saved.clientes || []; S.plan = saved.plan || []; S.fondos = saved.fondos || []; S.proveedores = saved.proveedores || []; S.compras = saved.compras || []; S.ordenes = saved.ordenes || []; S.movimientos = saved.movimientos || []; S.asientos = saved.asientos || []; S.stockajustes = saved.stockajustes || []; S.ots = saved.ots || []; S.stockmovs = saved.stockmovs || []; S.reglas = saved.reglas || null; S.cierres = saved.cierres || null; if (!S.fondos.length) S.fondos = clone(DEMO_FONDOS); }
-    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.reglas = null; S.cierres = null; S.fondos = clone(DEMO_FONDOS); }
+    else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.wachats = []; S.wamsgs = []; S.reglas = null; S.cierres = null; S.fondos = clone(DEMO_FONDOS); }
     try { S.me = localStorage.getItem(LS_KEY + '-nombre') || ''; } catch(e) {}
     banner('Versión de prueba: los datos se guardan <b>solo en este dispositivo</b> y no se comparten con los demás.');
     render();
@@ -458,7 +459,7 @@ async function nextNumero(){
 
 /* ============ navegación ============ */
 const ROUTES = [
-  {k:'tablero', n:'Tablero', ic:'dash', g:'Ventas'}, {k:'presupuestos', n:'Presupuestos', nm:'Presup.', ic:'list', g:'Ventas'}, {k:'nuevo', n:'Nuevo presupuesto', nm:'Nuevo', ic:'plus', g:'Ventas'}, {k:'clientes', n:'Clientes', ic:'users', g:'Ventas'},
+  {k:'tablero', n:'Tablero', ic:'dash', g:'Ventas'}, {k:'presupuestos', n:'Presupuestos', nm:'Presup.', ic:'list', g:'Ventas'}, {k:'nuevo', n:'Nuevo presupuesto', nm:'Nuevo', ic:'plus', g:'Ventas'}, {k:'clientes', n:'Clientes', ic:'users', g:'Ventas'}, {k:'whatsapp', n:'WhatsApp', ic:'chat', g:'Ventas'},
   {k:'ot', n:'Órdenes de trabajo', nm:'Taller', ic:'tool', g:'Producción'}, {k:'stock', n:'Stock y compras', nm:'Stock', ic:'stock', g:'Producción'},
   {k:'caja', n:'Caja', ic:'cash', g:'Finanzas'}, {k:'contabilidad', n:'Contabilidad', nm:'Contab.', ic:'book', g:'Finanzas'},
   {k:'catalogo', n:'Configuración', nm:'Config.', ic:'gear', g:'Ajustes'}, {k:'asistente', n:'Asistente WhatsApp (demo)', nm:'Asistente', ic:'chat', g:'Ajustes'}, {k:'menu', n:'Más', ic:'dots'},
@@ -494,6 +495,7 @@ function doRender(){
   else if (S.route === 'catalogo') v.innerHTML = viewCatalogo();
   else if (S.route === 'ot') v.innerHTML = viewOT();
   else if (S.route === 'stock') v.innerHTML = viewStock();
+  else if (S.route === 'whatsapp') v.innerHTML = viewWhatsApp();
   renderLayer();
   if (S.otId) dibujarOT();
   if (S.mode === 'supa' || S.mode === 'mem') { revisarAvisos(); if (!_pdfLib && _pdfAuto) { _pdfAuto = false; setTimeout(() => prepararPDF().catch(() => {}), 1500); } }
@@ -871,6 +873,7 @@ function renderLayer(){
         <div class="row">${aprob || ['enviado','negociacion','venta'].includes(p.estado) ? '' : `<span class="small" style="color:var(--warn);font-weight:600">Borrador: aún no aprobado</span>`}
         <button class="btn sm" onclick="pdfPresupuesto('${esc(p.id)}')">⬇ PDF</button>
         ${aprob || ['enviado','negociacion','venta'].includes(p.estado) ? `<button class="btn sm" onclick="pdfPresupuesto('${esc(p.id)}',true)">Compartir PDF</button>` : ''}
+        ${waActivo() && tel && (aprob || ['enviado','negociacion','venta'].includes(p.estado)) ? `<button class="btn sm ok" onclick="pdfPresupuesto('${esc(p.id)}','api')">Enviar PDF por WhatsApp</button>` : ''}
         <button class="btn sm" onclick="copiarTexto()">${IC.copy} Copiar</button>
         ${tel && (aprob || ['enviado','negociacion'].includes(p.estado)) ? `<a class="btn sm ok" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(textoCliente(p, ver))}">Abrir WhatsApp</a>` : ''}</div></div>
         <pre id="txtCli" style="white-space:pre-wrap;font-family:var(--fb);font-size:13.5px;background:#f7f6f3;border-radius:8px;padding:12px;margin:0">${esc(textoCliente(p, ver))}</pre></div>` : ''}
@@ -1010,17 +1013,22 @@ function viewParams(ro){
     <div class="grid3">${f('empresaNombre','Nombre comercial','Encabezado de los documentos','text')}${f('empresaRuc','RUC','','text')}${f('empresaTelefono','Teléfono / WhatsApp','','text')}</div>
     <div class="grid3" style="margin-top:12px">${f('empresaDireccion','Dirección','','text')}${f('empresaEmail','Email','','text')}${f('empresaWeb','Web','','text')}</div>
     <label class="f" style="margin-top:12px">Condiciones al pie del presupuesto<span class="h">Una por línea: garantía, forma de pago, cuentas para transferir, etc.</span><textarea class="in" id="pp-condicionesPresupuesto" ${ro?'disabled':''} style="min-height:90px">${esc(p.condicionesPresupuesto || '')}</textarea></label>
+    <h3 style="margin:18px 0 10px">WhatsApp</h3>
+    <label class="row small"><input type="checkbox" id="pp-waActivo" ${p.waActivo ? 'checked' : ''} ${ro?'disabled':''}> Activar WhatsApp (solo después de configurar Meta y la función del servidor)</label>
+    <div class="grid2" style="margin-top:10px">${f('waPlantillaDoc','Plantilla para enviar documentos','Nombre exacto aprobado en Meta','text')}${f('waPlantillaIdioma','Idioma de la plantilla','Ej. es','text')}</div>
+    <label class="f" style="margin-top:10px">Respuesta automática<span class="h">Se manda cuando un cliente escribe por primera vez en el día. Vacío = sin respuesta automática.</span><textarea class="in" id="pp-waAutoRespuesta" ${ro?'disabled':''} style="min-height:70px">${esc(p.waAutoRespuesta || '')}</textarea></label>
     <h3 style="margin:18px 0 10px">Motivos de pérdida</h3>
     <label class="f">Uno por línea<textarea class="in" id="pp-motivos" ${ro?'disabled':''} style="min-height:120px">${esc((p.motivosPerdida||DEMO_PARAMS.motivosPerdida).join('\n'))}</textarea></label>
     ${ro ? '' : `<div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn pri" onclick="saveParams()">${IC.check} Guardar parámetros</button></div>`}
     ${S.mode==='mem' ? `<div class="row" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);justify-content:space-between"><span class="small muted">Prueba local: podés empezar de cero cuando quieras.</span><button class="btn sm bad" onclick="resetPrueba()">Borrar datos de prueba</button></div>` : ''}
   </div>`;
 }
-async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.reglas = null; S.cierres = null; S.fondos = clone(DEMO_FONDOS); persist(); render(); toast('Datos borrados'); }
+async function resetPrueba(){ if (!(await dialog('Borrar datos de prueba', 'Se borran presupuestos, productos y cambios de costos de <b>este dispositivo</b>. No afecta a los demás.', 'Borrar todo'))) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.wachats = []; S.wamsgs = []; S.reglas = null; S.cierres = null; S.fondos = clone(DEMO_FONDOS); persist(); render(); toast('Datos borrados'); }
 async function saveParams(){
   const keys = ['tarifaHora','gastosMensuales','horasProductivasMes','desperdicioPct','margenObjetivo','margenMinimo','descuentoMax','redondeo','validezDias','anticipoPct','seguimientoDias','ivaPct'];
   const d = {}; keys.forEach(k => { const v = $('#pp-'+k).value; d[k] = v === '' ? null : pf(v); });
   ['empresaNombre','empresaRuc','empresaTelefono','empresaDireccion','empresaEmail','empresaWeb'].forEach(k => d[k] = $('#pp-' + k).value.trim()); d.condicionesPresupuesto = $('#pp-condicionesPresupuesto').value.trim();
+  d.waActivo = $('#pp-waActivo').checked; d.waPlantillaDoc = $('#pp-waPlantillaDoc').value.trim() || 'documento_lfl'; d.waPlantillaIdioma = $('#pp-waPlantillaIdioma').value.trim() || 'es'; d.waAutoRespuesta = $('#pp-waAutoRespuesta').value.trim();
   d.plazoEntrega = $('#pp-plazoEntrega').value; d.anticipoParaLiberar = $('#pp-anticipoParaLiberar').checked;
   d.modoFactura = $('#pp-modoFactura').value;
   d.establecimiento = $('#pp-establecimiento').value.trim(); d.puntoExpedicion = $('#pp-puntoExpedicion').value.trim(); d.ivaDefecto = +$('#pp-ivaDefecto').value;
@@ -1286,7 +1294,7 @@ async function iniciarSesion(session){
   ]);
   clearTimeout(timer);
   if (d.error) { banner('No se pudieron leer los datos: ' + esc(d.error.message)); return; }
-  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.reglas = null; S.cierres = null;
+  S.params = null; S.materiales = []; S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.ots = []; S.stockmovs = []; S.wachats = []; S.wamsgs = []; S.reglas = null; S.cierres = null;
   d.data.forEach(aplicarDoc);
   S.perfiles = pf.data || []; aplicarPerfiles();
   S.facturas = fc.data || [];
@@ -2041,7 +2049,7 @@ async function nuevoIngreso(cat, presId){
   try { await put('movimientos', mid, {...r, por:S.me, at:now()}); } catch(e) { return; }
   if (r.presupuestoId) { const p = S.presupuestos.find(x => x.id === r.presupuestoId); if (p) await patchPres(p.id, {}, `Cobro registrado ${gs(r.monto)} (${r.numeroRecibo})`); }
   toast('Ingreso registrado');
-  if (r.categoria === 'cobro' && await dialog(`Recibo ${r.numeroRecibo}`, `Cobro de <b>${gs(r.monto)}</b> registrado. ¿Generar el recibo en PDF?`, 'Generar recibo')) pdfRecibo(mid);
+  if (r.categoria === 'cobro') { const q = await dialog(`Recibo ${r.numeroRecibo}`, `Cobro de <b>${gs(r.monto)}</b> registrado. ¿Generar el recibo en PDF?${waActivo() ? `<label class="row small" style="margin-top:10px"><input type="checkbox" id="rc-wa" checked> Enviarlo por WhatsApp al cliente</label>` : ''}`, 'Generar recibo', () => ({wa: !!($('#rc-wa') && $('#rc-wa').checked)})); if (q) pdfRecibo(mid, q.wa); }
 }
 async function nuevaTransferencia(){
   const F = (S.fondos || []).filter(f => f.activo !== false); if (F.length < 2) { toast('Necesitás al menos dos cuentas'); return; }
@@ -3279,12 +3287,13 @@ async function pdfPresupuesto(id, compartir){
   if (['solicitud', 'elaboracion', 'pendiente'].includes(p.estado)) pdfMarcaAgua(doc, 'BORRADOR');
   pdfPie(doc, `${empresa().nombre} · Presupuesto ${num}`);
   const nombre = `Presupuesto_${p.numero}${ver.v > 1 ? '_v' + ver.v : ''}.pdf`;
+  if (compartir === 'api') return waEnviarPDF(doc, nombre, {tel:cli.telefono, nombre:cli.nombre, descripcion:`el presupuesto ${p.numero}`, leyenda:`Te enviamos el presupuesto ${p.numero}. Cualquier consulta, estamos a disposición.`, ref:p.id, presId:p.id, clienteId:cli.clienteId});
   if (compartir === 'wa' || compartir === true) return entregarPDF(doc, nombre, `Presupuesto ${p.numero} de ${empresa().nombre}`);
   doc.save(nombre);
 }
 
 /* ---------- constancia de entrega ---------- */
-async function pdfEntrega(presId, otId){
+async function pdfEntrega(presId, otId, api){
   const p = presId ? S.presupuestos.find(x => x.id === presId) : null;
   const O = (S.ots || []).filter(o => otId ? o.id === otId : (o.presupuestoId === presId && ['entregada', 'cerrada'].includes(o.estado) && o.fechaEntrega));
   if (!O.length) { toast('No hay órdenes entregadas para esta constancia'); return; }
@@ -3304,7 +3313,9 @@ async function pdfEntrega(presId, otId){
   doc.setFontSize(8.5); doc.setTextColor(...GRIS); doc.text('Observaciones:', 16, y); doc.setDrawColor(200); doc.setLineWidth(0.2); [8, 16].forEach(d => doc.line(16, y + d, 194, y + d)); y += 28;
   pdfFirmas(doc, y, ['Entregó (LFL)', 'Recibió conforme']);
   pdfPie(doc, 'Constancia interna de entrega. No reemplaza la nota de remisión cuando su emisión sea obligatoria.');
-  return entregarPDF(doc, `Constancia_entrega_${(p ? p.numero : O[0].id)}${otId ? '_' + otId : ''}.pdf`, 'Constancia de entrega');
+  const nomCE = `Constancia_entrega_${(p ? p.numero : O[0].id)}${otId ? '_' + otId : ''}.pdf`;
+  if (api) return waEnviarPDF(doc, nomCE, {tel:cli.telefono, nombre:cli.nombre, descripcion:'la constancia de entrega', ref:p && p.id, presId:p && p.id, clienteId:cli.clienteId});
+  return entregarPDF(doc, nomCE, 'Constancia de entrega');
 }
 function numerosFactura(p){ return p ? ventasContables().filter(v => v.presId === p.id).map(v => v.numero).filter(Boolean) : []; }
 
@@ -3322,7 +3333,7 @@ function enLetras(n){
   if (resto) out.push(letras999(resto));
   return out.join(' ');
 }
-async function pdfRecibo(movId){
+async function pdfRecibo(movId, api){
   const m = (S.movimientos || []).find(x => x.id === movId); if (!m) return;
   const p = S.presupuestos.find(x => x.id === m.presupuestoId) || null; const cli = (p && p.cliente) || {};
   let doc; try { doc = await nuevoPDF(); } catch(e) { return; }
@@ -3351,6 +3362,7 @@ async function pdfRecibo(movId){
   if (m.anulado) pdfMarcaAgua(doc, 'ANULADO');
   pdfFirmas(doc, y, [`Por ${empresa().nombre}`]);
   pdfPie(doc, 'Recibo interno de cobro. No reemplaza la factura.');
+  if (api) return waEnviarPDF(doc, `Recibo_${m.numeroRecibo || m.id}.pdf`, {tel:cli.telefono, nombre:cli.nombre, descripcion:`el recibo ${m.numeroRecibo || ''}`, leyenda:`Gracias por tu pago. Te enviamos el recibo ${m.numeroRecibo || ''}.`, ref:m.id, presId:p && p.id, clienteId:cli.clienteId});
   return entregarPDF(doc, `Recibo_${m.numeroRecibo || m.id}.pdf`, 'Recibo de cobro');
 }
 
@@ -3361,10 +3373,10 @@ function cobrosPresHTML(p){
   const cobrado = cob.filter(m => !m.anulado).reduce((s, m) => s + +m.monto, 0); const req = Math.round(total * (+P().anticipoPct || 0) / 100);
   const entregadas = (S.ots || []).some(o => o.presupuestoId === p.id && ['entregada', 'cerrada'].includes(o.estado));
   return `<div class="card pad"><div class="row" style="justify-content:space-between"><h3>Cobros</h3><div class="row">
-      <button class="btn sm" onclick="nuevoIngreso('cobro','${esc(p.id)}')">${cobrado ? '+ Cobro' : '+ Anticipo'}</button>${entregadas ? `<button class="btn sm" onclick="pdfEntrega('${esc(p.id)}')">Constancia de entrega</button>` : ''}</div></div>
+      <button class="btn sm" onclick="nuevoIngreso('cobro','${esc(p.id)}')">${cobrado ? '+ Cobro' : '+ Anticipo'}</button>${entregadas ? `<button class="btn sm" onclick="pdfEntrega('${esc(p.id)}')">Constancia de entrega</button>${waActivo() ? `<button class="btn sm" onclick="pdfEntrega('${esc(p.id)}',null,true)">Constancia por WhatsApp</button>` : ''}` : ''}</div></div>
     <div class="small" style="margin:6px 0">${fact ? 'Facturado' : 'Venta (sin facturar)'} <b class="num">${gs(total)}</b> · Cobrado <b class="num">${gs(cobrado)}</b> · Saldo <b class="num" style="color:${total - cobrado > 0 ? 'var(--bad)' : 'var(--ok)'}">${gs(total - cobrado)}</b>${req && cobrado < req && !fact ? ` · <span style="color:var(--warn)">Anticipo pendiente: ${gs(req - cobrado)}</span>` : ''}</div>
     ${cob.length ? `<table class="t" style="font-size:13.5px"><tbody>${cob.map(m => `<tr ${m.anulado ? 'style="opacity:.45;text-decoration:line-through"' : ''}><td class="small">${fDate(m.fecha)}</td><td>${esc(m.numeroRecibo || '')}<div class="small muted">${esc(((S.fondos || []).find(f => f.id === m.fondoId) || {}).nombre || '')}</div></td><td class="r num">${gs(m.monto)}</td>
-      <td class="r"><button class="btn sm ghost" onclick="pdfRecibo('${esc(m.id)}')">Recibo PDF</button></td></tr>`).join('')}</tbody></table>` : '<div class="small muted">Sin cobros todavía. Un cobro antes de facturar queda como anticipo del cliente.</div>'}</div>`;
+      <td class="r" style="white-space:nowrap"><button class="btn sm ghost" onclick="pdfRecibo('${esc(m.id)}')">Recibo PDF</button>${waActivo() && !m.anulado ? `<button class="btn sm ghost" onclick="pdfRecibo('${esc(m.id)}',true)">WhatsApp</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="small muted">Sin cobros todavía. Un cobro antes de facturar queda como anticipo del cliente.</div>'}</div>`;
 }
 
 /* ---------- avisos ---------- */
@@ -3377,6 +3389,7 @@ function avisos(){
   add('pagar', (S.ordenes || []).filter(o => o.estado === 'aprobada').length, 'órdenes de pago aprobadas sin pagar', "S.cj.tab='op';go('caja')");
   add('otat', (S.ots || []).filter(otAtrasada).length, 'órdenes de trabajo atrasadas', "S.otf.est='atrasadas';go('ot')", 'bad');
   if (P().anticipoParaLiberar) add('antic', (S.ots || []).filter(o => o.estado === 'planificada' && o.presupuestoId && (() => { const p = S.presupuestos.find(x => x.id === o.presupuestoId) || {}; return cobradoPres(p.id) < (+p.precioFinal || 0) * (+P().anticipoPct || 0) / 100; })()).length, 'OT esperan el anticipo para liberarse', "S.otf.est='abiertas';go('ot')");
+  add('wa', (S.wachats || []).filter(c => c.noLeidos > 0).length, 'conversaciones de WhatsApp sin leer', "go('whatsapp')", 'bad');
   add('falt', faltantesOT().length, 'materiales faltan para las OT abiertas', "S.sk.tab='faltantes';go('stock')");
   add('seg', S.presupuestos.filter(p => ['enviado', 'negociacion'].includes(p.estado) && (S.canAdmin || p.creadoPor === S.me) && (Date.now() - new Date(p.actualizado || p.creado)) > segD * 864e5).length, `presupuestos enviados sin movimiento hace más de ${segD} días`, "S.lf.est='seguimiento';go('presupuestos')");
   add('prom', (S.ots || []).filter(o => OT_ABIERTAS.includes(o.estado) && o.fechaPrometida && o.fechaPrometida >= hoy && o.fechaPrometida <= new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10)).length, 'OT con entrega prometida en los próximos 3 días', "S.otf.est='abiertas';go('ot')", 'info');
@@ -3406,7 +3419,7 @@ function revisarAvisos(){
 }
 
 /* ---------- respaldo ---------- */
-const COLS_RESPALDO = ['presupuestos','clientes','materiales','productos','plan','fondos','proveedores','compras','ordenes','movimientos','asientos','stockajustes','ots','stockmovs'];
+const COLS_RESPALDO = ['wachats','wamsgs','presupuestos','clientes','materiales','productos','plan','fondos','proveedores','compras','ordenes','movimientos','asientos','stockajustes','ots','stockmovs'];
 function respaldoJSON(){
   const d = {app:'LFL Gestión', generado:now(), por:nm(S.me), config:{params:S.params, reglas:S.reglas, cierres:S.cierres}};
   COLS_RESPALDO.forEach(c => d[c] = S[c] || []); d.facturas = S.facturas || [];
@@ -3430,6 +3443,85 @@ async function respaldoExcel(){
 function respaldoHTML(){
   return `<div class="card pad" style="margin-top:16px"><h2>Respaldo de datos</h2><p class="small muted" style="margin:4px 0 12px">Descargá una copia de todo. El <b>JSON</b> es la copia completa (sirve para restaurar). El <b>Excel</b> tiene presupuestos, clientes, caja, compras, órdenes, stock y el libro diario para el contador. Recomendado: una vez por semana y siempre antes de cerrar un mes. Guardalo fuera de la computadora (Drive).</p>
     <div class="row"><button class="btn" onclick="respaldoExcel()">⬇ Excel para el contador</button><button class="btn pri" onclick="respaldoJSON()">⬇ Respaldo completo (JSON)</button></div></div>`;
+}
+
+/* =====================================================================
+   WHATSAPP (Cloud API de Meta, vía la función "whatsapp" de Supabase)
+   ===================================================================== */
+const waActivo = () => !!P().waActivo && S.mode === 'supa';
+const normTelWa = t => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('00')) d = d.slice(2); if (d.startsWith('0')) d = '595' + d.slice(1); if (/^9\d{8}$/.test(d)) d = '595' + d; return d; };
+async function llamarWA(body){
+  const { data, error } = await S.sb.functions.invoke('whatsapp', { body });
+  if (!error) return data;
+  let msg = error.message; try { const j = await error.context.json(); msg = j.error || msg; } catch(e) {}
+  return {ok:false, error:msg};
+}
+function blobBase64(blob){ return new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = mal; r.readAsDataURL(blob); }); }
+async function waEnviarPDF(doc, nombreArchivo, dest){
+  const tel = normTelWa(dest.tel);
+  if (!/^\d{10,15}$/.test(tel)) { toast('El cliente no tiene un WhatsApp válido cargado (formato 595981…)'); return; }
+  const ok = await dialog('Enviar por WhatsApp', `Se envía <b>${esc(nombreArchivo)}</b> a <b>${esc(dest.nombre || '')}</b> (+${esc(tel)}).
+    <label class="f" style="margin-top:10px">Mensaje (opcional)<input class="in" id="wa-ley" value="${esc(dest.leyenda || '')}"></label>
+    <p class="small muted">Si el cliente no escribió en las últimas 24 h, WhatsApp manda la plantilla aprobada con el PDF adjunto.</p>`, 'Enviar', () => $('#wa-ley').value.trim());
+  if (ok === false) return;
+  toast('Enviando…');
+  const r = await llamarWA({accion:'documento', tel, nombre:dest.nombre || '', descripcion:dest.descripcion || nombreArchivo, nombreArchivo, leyenda: typeof ok === 'string' ? ok : '', pdf: await blobBase64(doc.output('blob')), ref:dest.ref || null, clienteId:dest.clienteId || null});
+  if (r && r.ok) { toast(r.plantilla ? 'Enviado con plantilla (fuera de las 24 h)' : 'Enviado por WhatsApp'); if (dest.presId) patchPres(dest.presId, {}, `Enviado por WhatsApp: ${nombreArchivo}`); }
+  else toast('No se pudo enviar: ' + ((r && r.error) || 'error desconocido'));
+}
+
+S.waSel = null; S.waQ = '';
+function waChats(){ return (S.wachats || []).slice().sort((a,b) => String(b.ultimo || '').localeCompare(String(a.ultimo || ''))); }
+function waNombre(c){ const cli = (S.clientes || []).find(x => normTelWa(x.telefono) === c.tel); return (cli && cli.nombre) || c.nombre || '+' + c.tel; }
+function waVentanaAbierta(c){ return c && c.ultimoEntrante && (Date.now() - Date.parse(c.ultimoEntrante)) < 24 * 3600e3; }
+function viewWhatsApp(){
+  if (!waActivo()) return `<div class="top"><div><h1>WhatsApp</h1><p>Conversaciones con clientes desde el número de LFL.</p></div></div>
+    <div class="card pad"><h3>Todavía no está activado</h3><p class="small">Cuando terminen la configuración en Meta y en el servidor, un socio lo activa en <a href="#catalogo">Configuración → Parámetros → WhatsApp</a>. Pasos en la guía de instalación (sección WhatsApp).</p></div>`;
+  const C = waChats().filter(c => !S.waQ || normTxt(waNombre(c) + ' ' + c.tel).includes(normTxt(S.waQ)));
+  const sel = (S.wachats || []).find(c => c.id === S.waSel);
+  const M = sel ? (S.wamsgs || []).filter(m => m.tel === sel.tel).sort((a,b) => String(a.at).localeCompare(String(b.at))) : [];
+  const tick = m => m.dir !== 'out' ? '' : m.estado === 'read' ? ' <span style="color:#34b7f1">✓✓</span>' : m.estado === 'delivered' ? ' ✓✓' : m.estado === 'failed' ? ` <span style="color:var(--bad)" title="${esc(m.error || '')}">⚠ no enviado</span>` : ' ✓';
+  const abierta = waVentanaAbierta(sel);
+  const presCli = sel ? S.presupuestos.filter(p => normTelWa((p.cliente || {}).telefono) === sel.tel).slice(0, 5) : [];
+  return `<div class="top"><div><h1>WhatsApp</h1><p>Mensajes del número de LFL. Respondé acá o creá el presupuesto con un toque.</p></div></div>
+  <div class="wa-grid" style="display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:14px">
+    <div class="card ${sel ? 'hide-m' : ''}" style="overflow:hidden"><div class="pad" style="padding:10px"><input class="in" placeholder="Buscar" value="${esc(S.waQ)}" oninput="S.waQ=this.value;clearTimeout(window._wq);window._wq=setTimeout(render,250)"></div>
+      ${C.length ? C.map(c => `<a href="#" onclick="waAbrir('${esc(c.id)}');return false" style="display:block;padding:10px 14px;border-top:1px solid var(--line);text-decoration:none;color:inherit;${c.id === S.waSel ? 'background:var(--neutral-soft)' : ''}">
+        <div class="row" style="justify-content:space-between"><b>${esc(waNombre(c))}</b><span class="small muted">${c.ultimo ? fDT(c.ultimo) : ''}</span></div>
+        <div class="row" style="justify-content:space-between"><span class="small muted" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:220px">${esc(c.ultimoTexto || '')}</span>${c.noLeidos ? `<span style="background:#25d366;color:#fff;border-radius:9px;font-size:11px;font-weight:700;padding:0 6px">${c.noLeidos}</span>` : ''}</div></a>`).join('') : '<div class="empty">Sin conversaciones todavía.</div>'}</div>
+    <div class="card" style="display:flex;flex-direction:column;min-height:420px">${sel ? `
+      <div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:10px 14px"><div><a href="#" class="show-m" style="display:none" onclick="S.waSel=null;render();return false">‹ Volver</a><b>${esc(waNombre(sel))}</b> <span class="small muted">+${esc(sel.tel)}</span></div>
+        <div class="row"><button class="btn sm pri" onclick="waCrearPresupuesto()">+ Presupuesto</button></div></div>
+      ${presCli.length ? `<div class="small" style="padding:6px 14px;border-bottom:1px solid var(--line)">Presupuestos: ${presCli.map(p => `<a href="#" onclick="go('presupuestos');openDetail('${esc(p.id)}');return false">${esc(p.numero)}</a> (${esc((EST[p.estado] || {}).n || p.estado)})`).join(' · ')}</div>` : ''}
+      <div id="wa-msgs" style="flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:6px;background:#efeae2;max-height:60vh">
+        ${M.map(m => `<div style="align-self:${m.dir === 'out' ? 'flex-end' : 'flex-start'};max-width:78%;background:${m.dir === 'out' ? '#d9fdd3' : '#fff'};border-radius:8px;padding:6px 10px;box-shadow:0 1px 1px rgba(0,0,0,.08)">
+          <div style="white-space:pre-wrap;font-size:14px">${esc(m.texto || '')}</div><div class="small muted" style="text-align:right;font-size:11px">${fDT(m.at)}${m.dir === 'out' && m.por ? ' · ' + esc(nm(m.por)) : m.auto ? ' · automática' : ''}${tick(m)}</div></div>`).join('')}
+      </div>
+      <div class="pad" style="border-top:1px solid var(--line);padding:10px">${abierta ? `<div class="row"><textarea class="in grow" id="wa-txt" rows="2" placeholder="Escribí una respuesta" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();waEnviarTexto()}"></textarea><button class="btn pri" onclick="waEnviarTexto()">Enviar</button></div>`
+        : `<div class="small muted">Pasaron más de 24 h desde el último mensaje del cliente: WhatsApp no permite texto libre. Podés enviarle un PDF (presupuesto, recibo) que sale con la plantilla aprobada.</div>`}</div>`
+      : '<div class="empty" style="margin:auto">Elegí una conversación.</div>'}</div>
+  </div>`;
+}
+async function waAbrir(id){
+  S.waSel = id; render(); const c = (S.wachats || []).find(x => x.id === id);
+  requestAnimationFrame(() => { const b = $('#wa-msgs'); if (b) b.scrollTop = b.scrollHeight; });
+  if (c && c.noLeidos) { const d = {...c}; delete d.id; d.noLeidos = 0; d.leidoPor = S.me; d.leidoAt = now(); try { await put('wachats', id, d); } catch(e) {} }
+}
+async function waEnviarTexto(){
+  const c = (S.wachats || []).find(x => x.id === S.waSel); const t = $('#wa-txt'); if (!c || !t || !t.value.trim()) return;
+  const texto = t.value.trim(); t.disabled = true;
+  const r = await llamarWA({accion:'texto', tel:c.tel, texto});
+  if (r && r.ok) { t.value = ''; toast('Enviado'); } else toast('No se pudo enviar: ' + ((r && r.error) || 'error'));
+  t.disabled = false; requestAnimationFrame(() => { const b = $('#wa-msgs'); if (b) b.scrollTop = b.scrollHeight; });
+}
+function waCrearPresupuesto(){
+  const c = (S.wachats || []).find(x => x.id === S.waSel); if (!c) return;
+  const ult = (S.wamsgs || []).filter(m => m.tel === c.tel && m.dir === 'in').sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0, 5).reverse().map(m => m.texto).join('\n');
+  const cli = (S.clientes || []).find(x => normTelWa(x.telefono) === c.tel);
+  newDraft(); S.editId = null;
+  S.draft.cliente = Object.assign(S.draft.cliente, cli ? {nombre:cli.nombre || '', empresa:cli.empresa || '', email:cli.email || '', razonSocial:cli.razonSocial || '', documento:cli.documento || '', tipoDoc:cli.tipoDoc || 'ruc', clienteId:cli.id} : {nombre:waNombre(c).startsWith('+') ? '' : waNombre(c)}, {telefono:c.tel});
+  S.draft.notas = ult ? 'Pedido por WhatsApp:\n' + ult : '';
+  const v = $('#view'); if (v) v.dataset.sig = ''; go('nuevo'); toast('Datos del cliente y su pedido cargados');
 }
 
 function otsDePresHTML(p){

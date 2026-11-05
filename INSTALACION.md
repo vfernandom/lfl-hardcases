@@ -161,3 +161,37 @@ Presupuesto → *Aprobado por el cliente* (cómo aprobó, N° de OC, link a la e
 - **Anticipos**: lo cobrado antes de facturar queda en *Anticipos de clientes* (pasivo) y se aplica solo a la factura cuando se emite.
 - **Avisos**: el Tablero muestra "Para hacer" según el usuario (OP por aprobar, presupuestos por aprobar, ventas sin facturar, OT atrasadas, faltantes, seguimiento). Número en rojo en el menú y notificaciones del navegador mientras la app está abierta.
 - **Respaldo**: Configuración → Parámetros → *Respaldo de datos* (JSON completo y Excel con libro diario para el contador). El plan gratuito de Supabase no guarda respaldos descargables: hacelo una vez por semana.
+
+### WhatsApp (conexión directa con Meta)
+La app envía presupuestos, recibos y constancias en PDF al WhatsApp del cliente y recibe sus mensajes en **Ventas → WhatsApp** (con botón *+ Presupuesto* que carga el cliente y su pedido).
+
+**A. En Meta** (business.facebook.com y developers.facebook.com)
+1. Portafolio comercial de LFL → App tipo *Empresa* → producto **WhatsApp** → agregar el **número nuevo** (sin usar en la app de WhatsApp) → nombre visible "LFL Hardcase".
+2. WhatsApp Manager → **Facturación**: método de pago.
+3. Configuración del negocio → **Usuarios del sistema** → crear uno → asignar la app y la cuenta de WhatsApp → **Generar token** permanente con `whatsapp_business_messaging` y `whatsapp_business_management`. **No compartirlo con nadie.**
+4. App → Configuración → Básica → copiar la **Clave secreta de la app**.
+5. WhatsApp Manager → **Plantillas** → crear:
+   - Nombre: `documento_lfl` · Categoría: **Utilidad** · Idioma: **Español**
+   - Encabezado: **Documento**
+   - Cuerpo: `Hola {{1}}, te enviamos {{2}} de LFL Hardcase. Ante cualquier consulta respondé este mensaje.`
+   - Pie: `LFL Hardcase`
+   - Meta la revisa; puede tardar. Si cambia la categoría, avisar.
+
+**B. En Supabase**
+1. SQL Editor → pegar [07_whatsapp.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/07_whatsapp.sql) → **Run**.
+2. **Edge Functions → Deploy a new function → Via editor** → nombre `whatsapp` → pegar [index.ts](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/functions/whatsapp/index.ts) → en la configuración de la función **desactivar "Verify JWT"** (Meta no manda sesión; la función valida la firma de Meta y la sesión de la app por su cuenta) → **Deploy**.
+3. **Edge Functions → Secrets** → agregar (los pega Fer, nadie más los ve):
+   - `WA_TOKEN` = token permanente (paso A3)
+   - `WA_PHONE_ID` = Phone Number ID (pantalla *Configuración de la API*)
+   - `WA_APP_SECRET` = clave secreta de la app (paso A4)
+   - `WA_VERIFY_TOKEN` = una palabra inventada, por ejemplo `lfl-webhook-2026`
+
+**C. Webhook en Meta**: App → WhatsApp → **Configuración** → Webhook:
+- URL de devolución de llamada: `https://kkpaylrcbhdvlsykhjel.supabase.co/functions/v1/whatsapp`
+- Token de verificación: la misma palabra de `WA_VERIFY_TOKEN` → **Verificar y guardar** → suscribirse al campo **messages**.
+
+**D. En la app**: Configuración → Parámetros → **WhatsApp** → tildar *Activar WhatsApp*, revisar el nombre de la plantilla y (opcional) la respuesta automática → Guardar.
+
+**Prueba**: escribir desde un celular al número de LFL → tiene que aparecer en Ventas → WhatsApp (y la respuesta automática, si está cargada). Después enviar un presupuesto con *Enviar PDF por WhatsApp*.
+
+**Costos**: Meta cobra por mensaje según tipo y país; desde el 1/10/2026 también las respuestas dentro de las 24 h. Ver la tabla oficial de precios de Meta antes de activar. Dentro de las 24 h del último mensaje del cliente se puede responder texto libre; fuera de ese plazo solo se envía la plantilla con el PDF.
