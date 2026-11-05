@@ -136,7 +136,7 @@ Cuando el contador valide las facturas de prueba (IVA, datos, numeración): en Y
 ### Actualización: órdenes de trabajo, stock por movimientos y cierre de mes
 1. Supabase → **SQL Editor** → pegá [05_erp.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/05_erp.sql) → **Run**. Se puede correr más de una vez.
 2. Recargá la app. El menú queda agrupado: **Ventas** · **Producción** (Órdenes de trabajo, Stock y compras) · **Finanzas** (Caja, Contabilidad) · **Configuración**.
-3. **Stock y compras → Cargar inventario inicial**: lo que hay hoy en la fábrica, con su costo sin IVA.
+3. **Stock y compras → Inventario inicial**: lo que hay hoy en la fábrica, con su costo sin IVA. Se puede cargar en pantalla o por Excel: **⬇ Planilla Excel** (ya trae los materiales y productos del catálogo), completar *Cantidad contada* y *Costo unitario*, y **⬆ Subir Excel** (muestra un resumen antes de registrar).
 4. **Configuración → Materiales**: asigná rol *Perfil de cierre* y *Rueda* si los usan. **Configuración → Reglas a medida**: revisá espesores, herrajes, horas y etapas con el taller (vienen con valores de ejemplo).
 
 **Circuito:**

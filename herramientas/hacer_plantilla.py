@@ -12,7 +12,7 @@ N = Font(name=F, size=10)
 B = Font(name=F, size=10, bold=True)
 thin = Side(style='thin', color='D3D0C9')
 
-ROLES = ['Placa','Perfil','Espuma','Cierre','Manija','Bisagra','Esquinero','Consumibles','Otro']
+ROLES = ['Placa','Perfil','Perfil de cierre','Espuma','Cierre','Manija','Bisagra','Esquinero','Rueda','Consumibles','Otro']
 MATS = [('Placa fenólico 9 mm','Placa','m²',95000,''),('Perfil aluminio unión','Perfil','m',28000,''),('Espuma 10 mm','Espuma','m²',40000,''),
         ('Cierre mariposa','Cierre','unidad',35000,''),('Manija retráctil','Manija','unidad',30000,''),('Bisagra','Bisagra','unidad',15000,''),
         ('Esquinero bola','Esquinero','unidad',9000,''),('Remaches y consumibles (kit)','Consumibles','kit',15000,'')]

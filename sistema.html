@@ -2450,8 +2450,8 @@ async function cambiarPermiso(id, campo, valor){
 /* ============ IMPORTAR / EXPORTAR CATÁLOGO (Excel) ============ */
 const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
 function cargarXLSX(){ return window.XLSX ? Promise.resolve(window.XLSX) : new Promise((ok, mal) => { const s = document.createElement('script'); s.src = XLSX_URL; s.onload = () => ok(window.XLSX); s.onerror = () => mal(new Error('No se pudo cargar el lector de Excel. Revisá la conexión.')); document.head.appendChild(s); }); }
-const ROL_TXT = {placa:'Placa', perfil:'Perfil', espuma:'Espuma', cierre:'Cierre', manija:'Manija', bisagra:'Bisagra', esquinero:'Esquinero', consumible:'Consumibles', otro:'Otro'};
-function rolDeTexto(t){ const n = normTxt(t); if (!n) return 'otro'; if (n.startsWith('consum')) return 'consumible'; const k = Object.keys(ROL_TXT).find(k => n.startsWith(k)); return k || 'otro'; }
+const ROL_TXT = {placa:'Placa', perfil:'Perfil', perfilcierre:'Perfil de cierre', espuma:'Espuma', rueda:'Rueda', cierre:'Cierre', manija:'Manija', bisagra:'Bisagra', esquinero:'Esquinero', consumible:'Consumibles', otro:'Otro'};
+function rolDeTexto(t){ const n = normTxt(t); if (!n) return 'otro'; if (n.startsWith('consum')) return 'consumible'; if (n.startsWith('perfil de cierre') || n.startsWith('perfilcierre')) return 'perfilcierre'; const k = Object.keys(ROL_TXT).find(k => n.startsWith(k)); return k || 'otro'; }
 function numXls(v){
   if (typeof v === 'number') return v; let s = String(v ?? '').replace(/[₲Gg$\s]/g, '').replace(/s\.?$/i, '');
   if (!s) return NaN;
@@ -2701,7 +2701,7 @@ function skExistencias(){
   const vMat = mats.reduce((s,m) => s + ((st['m:' + m.id] || {}).valor || 0), 0), vTer = term.reduce((s,k) => s + st[k].valor, 0);
   const comprom = comprometidoOT();
   const sinMov = !(S.stockmovs || []).some(d => d.tipo === 'inicial') && !(S.compras || []).length;
-  return `${sinMov ? `<div class="note info" style="margin-bottom:14px;align-items:center">${IC.info}<div class="grow">Para arrancar, cargá el <b>inventario inicial</b>: lo que hay hoy en la fábrica, con su costo.</div><button class="btn sm dark" onclick="inventarioInicial()">Cargar inventario inicial</button></div>` : ''}
+  return `${sinMov ? `<div class="note info" style="margin-bottom:14px;align-items:center">${IC.info}<div class="grow">Para arrancar, cargá el <b>inventario inicial</b>: lo que hay hoy en la fábrica, con su costo. Podés completarlo en pantalla o en Excel: bajá la planilla, completala y subila.</div><div class="row"><button class="btn sm" onclick="planillaInventario()">⬇ Planilla Excel</button><button class="btn sm" onclick="importarInventario()">⬆ Subir Excel</button><button class="btn sm dark" onclick="inventarioInicial()">Cargar en pantalla</button></div></div>` : ''}
   <div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="card kpi"><div class="l">Materiales</div><div class="v num">${gsM(vMat)}</div><div class="s">Costo promedio, sin IVA</div></div>
     <div class="card kpi"><div class="l">Productos terminados</div><div class="v num">${gsM(vTer)}</div><div class="s">${term.filter(k => st[k].cant > 0).length} ítems en stock</div></div>
     <div class="card kpi"><div class="l">En producción</div><div class="v num">${gsM(Object.values(motorStock().wip).reduce((s,v) => s + Math.max(v,0), 0))}</div><div class="s">Materiales entregados a OT abiertas</div></div></div>
@@ -2712,7 +2712,7 @@ function skExistencias(){
   </tbody></table></div>
   ${term.length ? `<div class="card" style="margin-top:14px"><div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>Productos terminados</b></div><table class="t"><tbody>
     ${term.map(k => { const s = st[k], i = itemInfo(k); return `<tr class="click" onclick="S.sk.tab='kardex';S.sk.item='${k}';render()"><td>${esc(i.nombre)}</td><td class="r num">${fmtN(s.cant, 0)} u</td><td class="r num">${gs(s.avg)}/u</td><td class="r num">${gs(s.valor)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
-  <div class="row" style="margin-top:12px"><button class="btn sm" onclick="inventarioInicial()">Inventario inicial</button><span class="small muted">Tocá un material para ver su kardex. "Comprometido" = pendiente de entregar a órdenes de trabajo abiertas.</span></div>`;
+  <div class="row" style="margin-top:12px"><button class="btn sm" onclick="inventarioInicial()">Inventario inicial</button><button class="btn sm" onclick="planillaInventario()">⬇ Planilla Excel</button><button class="btn sm" onclick="importarInventario()">⬆ Subir Excel</button><span class="small muted">Tocá un material para ver su kardex. "Comprometido" = pendiente de entregar a órdenes de trabajo abiertas.</span></div>`;
 }
 function skKardex(){
   const {st} = motorStock();
@@ -3083,6 +3083,64 @@ async function cambiarCierre(m, cerrar){
   if (!(await dialog(cerrar ? `Cerrar ${nombreMes(m)}` : `Reabrir ${nombreMes(m)}`, cerrar ? 'Después no se podrán cargar ni modificar movimientos con fecha de ese mes.' : 'Se podrán volver a cargar y modificar movimientos de ese mes.', cerrar ? 'Cerrar mes' : 'Reabrir'))) return;
   const meses = cerrar ? [...new Set([...MESES_CERRADOS(), m])].sort() : MESES_CERRADOS().filter(x => x !== m);
   try { await put('config', 'cierres', {meses, actualizado:now(), por:S.me}); toast(cerrar ? 'Mes cerrado' : 'Mes reabierto'); } catch(e) {}
+}
+
+/* ---------- inventario inicial por Excel ---------- */
+async function planillaInventario(){
+  let X; try { X = await cargarXLSX(); } catch(e) { toast(e.message); return; }
+  const {st} = motorStock(); const wb = X.utils.book_new();
+  const ins = [['Inventario inicial · LFL Hardcase'], [''], ['1. Contá lo que hay hoy en la fábrica y completá la columna "Cantidad contada" de la hoja Inventario.'],
+    ['2. "Costo unitario" es el costo SIN IVA de una unidad. Viene del catálogo: corregilo si el real es otro. Para productos terminados poné el costo de fabricación.'],
+    ['3. Dejá la cantidad vacía (o en 0) en lo que no haya. No cambies las columnas Tipo e Ítem: con ellas la app reconoce cada fila.'],
+    ['4. Si falta un material, cargalo primero en Configuración → Materiales (o importá el catálogo) y volvé a bajar esta planilla.'],
+    ['5. En la app: Stock y compras → ⬆ Subir Excel. Vas a ver un resumen antes de registrar.'], [''], ['Se contabiliza como Inventario a Capital aportado.']];
+  const wsI = X.utils.aoa_to_sheet(ins); wsI['!cols'] = [{wch:120}]; X.utils.book_append_sheet(wb, wsI, 'Instrucciones');
+  const cab = ['Tipo','Ítem','Unidad','Stock en sistema','Cantidad contada','Costo unitario ₲ (sin IVA)'];
+  const filas = [...S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).map(m => ['Material', m.nombre, m.unidad || '', Math.round(stockDe(st, 'm:' + m.id) * 100) / 100, '', +m.precio || '']),
+    ...S.productos.map(p => ['Producto', p.codigo, 'u · ' + (p.nombre || ''), Math.round(stockDe(st, 'p:' + p.id) * 100) / 100, '', ''])];
+  const ws = X.utils.aoa_to_sheet([cab, ['Obligatorio','Obligatorio','Informativo','Informativo','Completar','Obligatorio si hay cantidad'], ...filas]);
+  ws['!cols'] = [{wch:12},{wch:36},{wch:28},{wch:16},{wch:18},{wch:26}]; X.utils.book_append_sheet(wb, ws, 'Inventario');
+  X.writeFile(wb, `inventario_LFL_${hoyISO()}.xlsx`);
+}
+function analizarInventario(wb){
+  const F = filasHoja(wb, 'Inventario') || filasHoja(wb, wb.SheetNames[wb.SheetNames.length - 1]) || [];
+  const lineas = [], errores = [], avisos = []; const vistos = new Set();
+  F.forEach(o => {
+    const tipo = normTxt(col(o, 'tipo')), item = String(col(o, 'item') || '').trim(); const q = numXls(col(o, 'cantidad')), c = numXls(col(o, 'costo'));
+    if (!item) return; if (isNaN(q) || q === 0) return;
+    let k = null, n = item;
+    if (tipo.startsWith('prod')) { const p = S.productos.find(x => normTxt(x.codigo) === normTxt(item)); if (p) { k = 'p:' + p.id; n = `${p.codigo} ${p.nombre}`; } }
+    else { const m = S.materiales.find(x => normTxt(x.nombre) === normTxt(item)); if (m) { k = 'm:' + m.id; n = m.nombre; } }
+    if (!k) { errores.push(`Fila ${o._fila}: "${item}" no está en Configuración → ${tipo.startsWith('prod') ? 'Productos' : 'Materiales'}`); return; }
+    if (q < 0) { errores.push(`Fila ${o._fila}: ${n} tiene cantidad negativa`); return; }
+    if (!(c > 0)) { errores.push(`Fila ${o._fila}: ${n} necesita costo unitario mayor a 0`); return; }
+    if (vistos.has(k)) { errores.push(`Fila ${o._fila}: ${n} está repetido`); return; } vistos.add(k);
+    lineas.push({item:k, cant:Math.round(q * 10000) / 10000, costoUnit:Math.round(c), _n:n});
+  });
+  if (!F.length) avisos.push('No encontré la hoja "Inventario" con datos.');
+  return {lineas, errores, avisos};
+}
+async function importarInventario(){
+  if (!S.canAdmin) { toast('Solo los socios cargan el inventario inicial'); return; }
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return; let R;
+    try { const X = await cargarXLSX(); R = analizarInventario(X.read(await f.arrayBuffer(), {type:'array'})); } catch(e) { toast('No se pudo leer el archivo: ' + e.message); return; }
+    const total = R.lineas.reduce((s,l) => s + l.cant * l.costoUnit, 0);
+    const ya = (S.stockmovs || []).filter(d => d.tipo === 'inicial' && !d.anulado);
+    const r = await dialog(`Inventario inicial · ${esc(f.name)}`, `<div style="max-height:60vh;overflow:auto">
+      ${ya.length ? `<div class="note warn" style="margin-bottom:10px">${IC.warn}<div>Ya hay ${ya.length} inventario${ya.length > 1 ? 's' : ''} inicial${ya.length > 1 ? 'es' : ''} registrado${ya.length > 1 ? 's' : ''}: esto <b>se suma</b>. Si querés reemplazarlo, anulá el anterior en Stock → Kardex → Documentos de stock.</div></div>` : ''}
+      ${R.errores.length ? `<div class="note bad" style="margin-bottom:10px">${IC.warn}<div><b>${R.errores.length} fila${R.errores.length > 1 ? 's' : ''} con error</b> (no se cargan):<ul style="margin:4px 0 0;padding-left:16px">${R.errores.slice(0, 30).map(e => `<li>${esc(e)}</li>`).join('')}</ul></div></div>` : ''}
+      ${R.avisos.map(a => `<div class="note warn" style="margin-bottom:10px">${IC.warn}<div>${esc(a)}</div></div>`).join('')}
+      ${R.lineas.length ? `<table class="lines ft"><thead><tr><th>Ítem</th><th class="r">Cantidad</th><th class="r">Costo unit.</th><th class="r">Valor</th></tr></thead><tbody>
+        ${R.lineas.map(l => `<tr><td>${esc(l._n)}</td><td class="r num">${fmtN(l.cant, 2)}</td><td class="r num">${gs(l.costoUnit)}</td><td class="r num">${gs(l.cant * l.costoUnit)}</td></tr>`).join('')}
+        <tr><td colspan="3"><b>Total</b></td><td class="r num"><b>${gs(total)}</b></td></tr></tbody></table>` : '<p>No hay filas con cantidad para cargar.</p>'}
+      <label class="f" style="margin-top:10px;max-width:200px">Fecha del inventario<input class="in" type="date" id="iv-f" value="${hoyISO()}"></label></div>`,
+      R.lineas.length ? `Registrar ${R.lineas.length} ítem${R.lineas.length > 1 ? 's' : ''}` : 'Cerrar', () => R.lineas.length ? $('#iv-f').value : true);
+    if (!r || !R.lineas.length) return;
+    try { await guardarStockMov({tipo:'inicial', fecha:r, motivo:'Inventario inicial (Excel)', lineas:R.lineas.map(({_n, ...l}) => l)}); toast(`Inventario inicial registrado: ${gs(total)}`); } catch(e) { toast(e.message); }
+  };
+  inp.click();
 }
 
 function otsDePresHTML(p){
