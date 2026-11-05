@@ -68,13 +68,17 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
 |---|---|
 | Saldo inicial de una cuenta | Caja/Banco a Capital aportado |
 | Factura registrada | Clientes a Ventas + IVA débito |
-| Venta confirmada | Costo de materiales vendidos a Inventario (materiales del presupuesto + desperdicio, a costo promedio) |
+| Entrega de materiales a una OT | Producción en proceso a Inventario de materiales |
+| Control de calidad aprobado | Productos terminados a Producción en proceso |
+| Entrega al cliente | Costo de ventas a Productos terminados |
+| Inventario inicial | Inventario a Capital aportado |
+| Baja (rotura, pérdida) | Pérdidas por bajas a Inventario |
 | Compra | Inventario / Gasto / Activo fijo + IVA crédito a Proveedores |
 | Cobro | Caja/Banco a Clientes |
 | Pago de orden | Proveedores (o la cuenta elegida) a Caja/Banco |
 | Aporte / préstamo / otro ingreso | Caja/Banco a Capital / Préstamos / Otros ingresos |
 | Transferencia | Cuenta destino a cuenta origen |
-| Ajuste de stock | Inventario ↔ Diferencias de inventario |
+| Ajuste o conteo físico | Inventario ↔ Diferencias de inventario |
 | Sueldos devengados, depreciaciones, impuesto a la renta | Asiento manual |
 
 > Es contabilidad de gestión. Los libros y declaraciones oficiales siguen a cargo del contador.
@@ -82,7 +86,7 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
 ### Actualización: permisos de administrador y de aprobación de OP (05/11/2026)
 1. Supabase → **SQL Editor** → pegá [04_permisos.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/04_permisos.sql) → **Run**.
    El primer socio creado (Fer) queda como **Administrador** y con **Aprueba OP**.
-2. En la app: **Catálogo → Usuarios** → tildá **Aprueba OP** a Limber. Leo queda socio sin ese permiso.
+2. En la app: **Configuración → Usuarios** → tildá **Aprueba OP** a Limber. Leo queda socio sin ese permiso.
 
 | Permiso | Qué permite | Quién lo cambia |
 |---|---|---|
@@ -128,3 +132,20 @@ Cuando el contador valide las facturas de prueba (IVA, datos, numeración): en Y
 | Editar costos, materiales, productos | ✅ | — |
 | Facturar y anular | ✅ | — |
 | Cambiar roles | ✅ | — |
+
+### Actualización: órdenes de trabajo, stock por movimientos y cierre de mes
+1. Supabase → **SQL Editor** → pegá [05_erp.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/05_erp.sql) → **Run**. Se puede correr más de una vez.
+2. Recargá la app. El menú queda agrupado: **Ventas** · **Producción** (Órdenes de trabajo, Stock y compras) · **Finanzas** (Caja, Contabilidad) · **Configuración**.
+3. **Stock y compras → Cargar inventario inicial**: lo que hay hoy en la fábrica, con su costo sin IVA.
+4. **Configuración → Materiales**: asigná rol *Perfil de cierre* y *Rueda* si los usan. **Configuración → Reglas a medida**: revisá espesores, herrajes, horas y etapas con el taller (vienen con valores de ejemplo).
+
+**Circuito:**
+Presupuesto → *Aprobado por el cliente* (cómo aprobó, N° de OC, link a la evidencia, fecha prometida) → se crea **una OT por renglón** → (a medida: plano aprobado) → *Liberar al taller* → *Entregar materiales* → etapas y horas reales → *Control de calidad* (checklist; si se rechaza, vuelve a producción) → ingresa a stock como producto terminado → *Entregar al cliente* → *Cerrar OT* (costo real vs. presupuestado y margen real).
+
+**Reglas nuevas:**
+- El stock solo cambia por documentos: compras, entregas a OT, devoluciones, producción, entregas, ajustes, conteo físico y bajas. Kardex por material con costo promedio ponderado.
+- Compras en dólares: se carga el tipo de cambio de la factura y se registra en guaraníes. La diferencia de cambio al pagar **no** se calcula: consultar al contador.
+- Anticipo: en *Configuración → Parámetros* se puede exigir el anticipo cobrado para liberar una OT (un socio autoriza excepciones).
+- **Cierre de mes** (*Configuración → Cierre de mes*): un mes cerrado no acepta cargas, cambios ni borrados de caja, compras, stock ni asientos, ni siquiera del administrador. Cierra cualquier socio; reabre solo un administrador. Lo controla la base de datos, no solo la app.
+- Presupuestos aprobados **antes** de esta actualización siguen descontando materiales como antes. Si querés seguirlos por OT, abrilos y tocá *Generar órdenes de trabajo*.
+- La dirección vieja `presupuestos.html` ahora redirige a `sistema.html`.
