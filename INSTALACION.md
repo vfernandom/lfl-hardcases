@@ -79,6 +79,18 @@ Guía de instalación (≈ 30 min). Los nombres de los menús de Supabase y Yo-F
 
 > Es contabilidad de gestión. Los libros y declaraciones oficiales siguen a cargo del contador.
 
+### Actualización: permisos de administrador y de aprobación de OP (05/11/2026)
+1. Supabase → **SQL Editor** → pegá [04_permisos.sql](https://raw.githubusercontent.com/vfernandom/lfl-hardcases/main/supabase/04_permisos.sql) → **Run**.
+   El primer socio creado (Fer) queda como **Administrador** y con **Aprueba OP**.
+2. En la app: **Catálogo → Usuarios** → tildá **Aprueba OP** a Limber. Leo queda socio sin ese permiso.
+
+| Permiso | Qué permite | Quién lo cambia |
+|---|---|---|
+| **Aprueba OP** (solo socios) | Aprobar, rechazar y anular órdenes de pago aprobadas | Un administrador |
+| **Administrador** | Eliminar cualquier registro (presupuestos, facturas, clientes, compras, órdenes, movimientos, asientos, ajustes, cuentas) y cambiar permisos | Un administrador (siempre queda al menos uno) |
+
+Al eliminar, la app muestra todo lo relacionado que se borra junto (por ejemplo, una compra con su orden de pago y su pago) para que la contabilidad siga cuadrando. Eliminar en el sistema **no anula** facturas en e-Kuatia: eso se hace en la DNIT.
+
 ## Parte B · Yo-Facturo (solo modo automático, requiere e-Kuatia)
 
 1. Creá la cuenta en yo-facturo.com (tiene prueba de 15 días).

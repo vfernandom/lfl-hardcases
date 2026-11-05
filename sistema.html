@@ -382,7 +382,7 @@ async function init(){
   }
   if (!db) {
     clearTimeout(loadTimer);
-    S.mode = 'mem'; S.canAdmin = true;
+    S.mode = 'mem'; S.canAdmin = true; S.esAdmin = true; S.apruebaOP = true;
     let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {}
     if (saved) { S.params = saved.params; S.materiales = saved.materiales || []; S.productos = saved.productos || []; S.presupuestos = saved.presupuestos || []; S.clientes = saved.clientes || []; S.plan = saved.plan || []; S.fondos = saved.fondos || []; S.proveedores = saved.proveedores || []; S.compras = saved.compras || []; S.ordenes = saved.ordenes || []; S.movimientos = saved.movimientos || []; S.asientos = saved.asientos || []; S.stockajustes = saved.stockajustes || []; if (!S.fondos.length) S.fondos = clone(DEMO_FONDOS); }
     else { S.params = clone(DEMO_PARAMS); S.materiales = clone(DEMO_MAT); S.productos = []; S.presupuestos = []; S.clientes = []; S.plan = []; S.fondos = []; S.proveedores = []; S.compras = []; S.ordenes = []; S.movimientos = []; S.asientos = []; S.stockajustes = []; S.fondos = clone(DEMO_FONDOS); }
@@ -808,6 +808,7 @@ function renderLayer(){
   if (['enviado','negociacion'].includes(p.estado)) acts.push(`<button class="btn ok" onclick="confirmarVenta()">Venta confirmada</button>`);
   if (['pendiente','enviado','negociacion'].includes(p.estado)) acts.push(`<button class="btn" onclick="editPres('${esc(p.id)}')">Nueva versión</button>`);
   if (abierto) acts.push(`<button class="btn bad" onclick="marcarPerdido()">Perdido / cancelar</button>`);
+  if (S.esAdmin) acts.push(BTN_DEL(`eliminarPresupuesto('${esc(p.id)}')`, 'Eliminar presupuesto'));
   if (p.estado === 'perdido' && S.canAdmin) acts.push(`<button class="btn" onclick="reabrir()">Reabrir</button>`);
   const steps = ['solicitud','elaboracion','pendiente','enviado','negociacion','venta'];
   const si = p.estado === 'perdido' ? -1 : steps.indexOf(p.estado);
@@ -1209,6 +1210,7 @@ function quitarDoc({col, id}){ if (col === 'config') { if (id === 'params') S.pa
 function aplicarPerfiles(){
   S.names = {}; S.perfiles.forEach(p => S.names[p.user_id] = p.nombre || 'Usuario');
   const yo = S.perfiles.find(p => p.user_id === S.me); S.canAdmin = !!(yo && yo.rol === 'socio');
+  S.esAdmin = !!(yo && yo.admin); S.apruebaOP = !!(yo && yo.aprueba_op && yo.rol === 'socio');
 }
 async function initSupa(){
   if (!window.supabase || !window.supabase.createClient) { S.mode = 'error'; banner('No se pudo cargar la librería de Supabase. Revisá tu conexión y recargá.'); return; }
@@ -1239,7 +1241,7 @@ async function iniciarSesion(session){
   banner(''); render();
   if (!S.canal) S.canal = S.sb.channel('lfl-cambios')
     .on('postgres_changes', {event:'*', schema:'public', table:'docs'}, ch => { if (ch.eventType === 'DELETE') quitarDoc(ch.old); else aplicarDoc(ch.new); render(); })
-    .on('postgres_changes', {event:'*', schema:'public', table:'facturas'}, ch => { const n = ch.new; const i = S.facturas.findIndex(f => f.id === n.id); if (i >= 0) S.facturas[i] = n; else S.facturas.push(n); render(); })
+    .on('postgres_changes', {event:'*', schema:'public', table:'facturas'}, ch => { if (ch.eventType === 'DELETE') { S.facturas = S.facturas.filter(f => f.id !== (ch.old || {}).id); render(); return; } const n = ch.new; const i = S.facturas.findIndex(f => f.id === n.id); if (i >= 0) S.facturas[i] = n; else S.facturas.push(n); render(); })
     .on('postgres_changes', {event:'*', schema:'public', table:'perfiles'}, ch => { const n = ch.new; const i = S.perfiles.findIndex(x => x.user_id === n.user_id); if (i >= 0) S.perfiles[i] = n; else S.perfiles.push(n); aplicarPerfiles(); render(); })
     .subscribe();
 }
@@ -1281,13 +1283,15 @@ function viewUsuarios(){
   const L = S.perfiles.slice().sort((a,b) => (a.rol === b.rol ? 0 : a.rol === 'socio' ? -1 : 1) || String(a.nombre).localeCompare(String(b.nombre)));
   return `<div class="card">
     <div class="pad" style="border-bottom:1px solid var(--line)"><h2>Usuarios</h2><p class="small muted" style="margin:2px 0 0">Los <b>socios</b> aprueban, editan costos y facturan. El <b>equipo comercial</b> crea presupuestos y hace seguimiento.</p></div>
-    <table class="t"><thead><tr><th>Nombre</th><th>Rol</th><th></th></tr></thead><tbody>
+    <table class="t"><thead><tr><th>Nombre</th><th>Rol</th><th>Aprueba OP</th><th>Administrador</th><th></th></tr></thead><tbody>
     ${L.map(u => `<tr><td><b>${esc(u.nombre || 'Usuario')}</b>${u.user_id === S.me ? ' <span class="small muted">(vos)</span>' : ''}</td>
       <td>${S.canAdmin && u.user_id !== S.me ? `<select class="in" style="width:auto" onchange="cambiarRol('${esc(u.user_id)}',this.value)"><option value="socio" ${u.rol==='socio'?'selected':''}>Socio</option><option value="comercial" ${u.rol!=='socio'?'selected':''}>Comercial</option></select>` : (u.rol === 'socio' ? 'Socio' : 'Comercial')}</td>
+      <td>${u.rol === 'socio' ? (S.esAdmin ? `<label class="row small"><input type="checkbox" ${u.aprueba_op ? 'checked' : ''} onchange="cambiarPermiso('${esc(u.user_id)}','aprueba_op',this.checked)"> Sí</label>` : (u.aprueba_op ? '✓ Sí' : '—')) : '<span class="small muted">Solo socios</span>'}</td>
+      <td>${S.esAdmin ? `<label class="row small"><input type="checkbox" ${u.admin ? 'checked' : ''} onchange="cambiarPermiso('${esc(u.user_id)}','admin',this.checked)"> Sí</label>` : (u.admin ? '✓ Sí' : '—')}</td>
       <td class="r">${u.user_id === S.me || S.canAdmin ? `<button class="btn sm ghost" onclick="renombrar('${esc(u.user_id)}')">Cambiar nombre</button>` : ''}</td></tr>`).join('')}
     </tbody></table>
     <div class="pad" style="border-top:1px solid var(--line)"><div class="row" style="justify-content:space-between">
-      <span class="small muted">Para sumar a alguien: Supabase → Authentication → Users → <b>Add user</b>. Entra como Comercial.</span>
+      <span class="small muted">Para sumar a alguien: Supabase → Authentication → Users → <b>Add user</b>. Entra como Comercial.<br><b>Aprueba OP</b>: puede aprobar o rechazar órdenes de pago. <b>Administrador</b>: puede eliminar registros y cambiar permisos.</span>
       <button class="btn sm" onclick="cambiarClave()">Cambiar mi contraseña</button></div></div>
   </div>`;
 }
@@ -1495,6 +1499,7 @@ function viewFacturaManual(p){
       ${!act && p.estado === 'venta' && !S.canAdmin ? `<span class="small muted">Un socio debe emitir la factura.</span>` : ''}
       ${act ? `<button class="btn sm" onclick="copiarResumenGuardado('${esc(p.id)}')">${IC.copy} Copiar datos</button>` : ''}
       ${act && S.canAdmin ? `<button class="btn sm bad" onclick="anularFacturaManual('${esc(p.id)}')">Anular registro</button>` : ''}
+      ${(p.facturasManual || []).length ? BTN_DEL(`eliminarFacturaRegistro('${esc(p.id)}')`, 'Eliminar registro') : ''}
       <a class="btn sm ghost" href="https://www.dnit.gov.py/web/e-kuatia/ekuatia-i" target="_blank" rel="noopener">Abrir e-Kuatia'i</a>
     </div>
     ${previas.length ? `<details style="margin-top:10px"><summary class="small" style="cursor:pointer">Registros anulados (${previas.length})</summary><ul class="tl" style="margin-top:8px">${previas.reverse().map(f => `<li><time>${fDT(f.at)}</time>N° ${esc(f.numero)} · ${gs(f.total)} — anulado: ${esc(f.motivoAnulacion || '')}</li>`).join('')}</ul></details>` : ''}
@@ -1660,7 +1665,7 @@ async function fichaCliente(id){
       ${c.notas ? `<div style="grid-column:1/-1"><span class="muted">Notas</span> ${esc(c.notas)}</div>` : ''}
     </div>
     <div class="row"><button class="btn pri sm" data-np>${IC.plus} Nuevo presupuesto</button><button class="btn sm" data-ed>Editar datos</button>
-      ${S.canAdmin && !ps.length ? `<button class="btn sm bad" data-del>Eliminar</button>` : ''}</div>
+      ${S.esAdmin ? `<button class="btn sm bad" data-del>🗑 Eliminar</button>` : ''}</div>
     <h3 style="margin:16px 0 6px">Presupuestos (${ps.length})</h3>
     ${ps.length ? `<table class="t"><tbody>${ps.map(p => `<tr class="click" data-p="${esc(p.id)}"><td><b>${esc(p.numero)}</b><div class="small muted">${fDate(p.creado)} · ${esc((p.productos||[]).join(', '))}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r num">${p.precioFinal ? gs(p.precioFinal) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Sin presupuestos todavía.</p>'}
   </div>`;
@@ -1670,7 +1675,7 @@ async function fichaCliente(id){
   w.onclick = e => { if (e.target === w) cerrar(); };
   w.querySelector('[data-ed]').onclick = () => { cerrar(); editarCliente(id); };
   w.querySelector('[data-np]').onclick = () => { cerrar(); S.editId = null; newDraft(); elegirClienteEnBorrador(id); go('nuevo'); };
-  const bd = w.querySelector('[data-del]'); if (bd) bd.onclick = async () => { cerrar(); if (await dialog('Eliminar cliente', `¿Eliminar a ${esc(c.nombre)} del catastro?`, 'Eliminar')) await del('clientes', id); };
+  const bd = w.querySelector('[data-del]'); if (bd) bd.onclick = async () => { cerrar(); await eliminarCliente(id); };
   w.querySelectorAll('[data-p]').forEach(tr => tr.onclick = () => { cerrar(); go('presupuestos'); openDetail(tr.dataset.p); });
 }
 async function importarClientes(){
@@ -1917,7 +1922,7 @@ function cajaMovimientos(){
         const ing = m.tipo === 'ingreso' || (m.tipo === 'transferencia' && S.cj.fondo && m.fondoDestinoId === S.cj.fondo);
         return `<tr ${anul}><td class="small">${fDate(m.fecha)}</td><td>${det}<div class="small muted">${esc(m.concepto || '')}${m.comprobante ? ' · Comp. ' + esc(m.comprobante) : ''}${m.anulado ? ' · ANULADO: ' + esc(m.motivoAnulacion || '') : ''}</div></td>
           <td class="hide-m small">${esc(nf(m.fondoId))}</td><td class="r num">${ing ? gs(m.monto) : ''}</td><td class="r num">${!ing ? gs(m.monto) : ''}</td>
-          ${S.canAdmin ? `<td class="r">${m.anulado ? '' : `<button class="btn sm ghost" onclick="anularMov('${esc(m.id)}')">Anular</button>`}</td>` : ''}</tr>`; }).join('')}
+          ${S.canAdmin ? `<td class="r" style="white-space:nowrap">${m.anulado ? '' : `<button class="btn sm ghost" onclick="anularMov('${esc(m.id)}')">Anular</button>`}${BTN_DEL(`eliminarMov('${esc(m.id)}')`, '')}</td>` : ''}</tr>`; }).join('')}
     </tbody></table>` : '<div class="empty"><b>Sin movimientos</b>Registrá un cobro, un ingreso o pagá una orden aprobada.</div>'}</div>`;
 }
 function tablaOP(L){
@@ -1925,9 +1930,9 @@ function tablaOP(L){
   ${L.map(o => `<tr><td><b>${esc(o.id)}</b><div class="small muted">${fDate(o.fecha)} · ${esc(nm(o.creadoPor))}</div></td>
     <td>${esc(o.beneficiario)}<div class="small muted">${esc(o.concepto || '')} · ${o.destino && o.destino.tipo === 'compra' ? 'Paga compra registrada' : esc(nombreCta(o.destino && o.destino.cuenta))}</div></td>
     <td class="r num"><b>${gs(o.monto)}</b></td><td>${opTag(o)}</td>
-    <td class="r" style="white-space:nowrap">${o.estado === 'pendiente' && S.canAdmin ? `<button class="btn sm ok" onclick="decidirOP('${esc(o.id)}','aprobada')">Aprobar</button><button class="btn sm bad" onclick="decidirOP('${esc(o.id)}','rechazada')">Rechazar</button>` : ''}
+    <td class="r" style="white-space:nowrap">${o.estado === 'pendiente' && S.apruebaOP ? `<button class="btn sm ok" onclick="decidirOP('${esc(o.id)}','aprobada')">Aprobar</button><button class="btn sm bad" onclick="decidirOP('${esc(o.id)}','rechazada')">Rechazar</button>` : ''}
       ${o.estado === 'aprobada' ? `<button class="btn sm pri" onclick="pagarOP('${esc(o.id)}')">Pagar</button>` : ''}
-      ${(o.estado === 'pendiente' && (S.canAdmin || o.creadoPor === S.me)) || (o.estado === 'aprobada' && S.canAdmin) ? `<button class="btn sm ghost" onclick="decidirOP('${esc(o.id)}','anulada')">Anular</button>` : ''}</td></tr>`).join('')}
+      ${(o.estado === 'pendiente' && (S.apruebaOP || o.creadoPor === S.me)) || (o.estado === 'aprobada' && S.apruebaOP) ? `<button class="btn sm ghost" onclick="decidirOP('${esc(o.id)}','anulada')">Anular</button>` : ''}${BTN_DEL(`eliminarOP('${esc(o.id)}')`, '')}</td></tr>`).join('')}
   </tbody></table>`;
 }
 const OPEST = {pendiente:['Pendiente de aprobación','#9a6212','var(--warn-soft)'], aprobada:['Aprobada · por pagar','#1c6ed4','var(--info-soft)'], pagada:['Pagada','#2b8a3e','var(--ok-soft)'], rechazada:['Rechazada','#c92a2a','var(--bad-soft)'], anulada:['Anulada','#55534f','var(--neutral-soft)']};
@@ -1950,7 +1955,7 @@ function cajaFondos(){
     ${F.length ? `<table class="t"><thead><tr><th>Cuenta</th><th class="hide-m">Cuenta contable</th><th class="r">Saldo inicial</th><th class="r">Saldo actual</th>${S.canAdmin ? '<th></th>' : ''}</tr></thead><tbody>
     ${F.map(f => `<tr ${f.activo === false ? 'style="opacity:.5"' : ''}><td><b>${esc(f.nombre)}</b><div class="small muted">${f.tipo === 'caja' ? 'Caja física' : 'Banco'}${f.banco ? ' · ' + esc(f.banco) : ''}${f.numero ? ' · ' + esc(f.numero) : ''}</div></td>
       <td class="hide-m small">${esc(fondoCta(f))} ${esc(nombreCta(fondoCta(f)))}</td><td class="r num">${gs(f.saldoInicial)}<div class="small muted">${fDate(f.fechaSaldo)}</div></td><td class="r num"><b>${gs(fondoSaldo(f))}</b></td>
-      ${S.canAdmin ? `<td class="r"><button class="btn sm ghost" onclick="editarFondo('${esc(f.id)}')">Editar</button></td>` : ''}</tr>`).join('')}</tbody></table>` : '<div class="empty">Sin cuentas.</div>'}</div>`;
+      ${S.canAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn sm ghost" onclick="editarFondo('${esc(f.id)}')">Editar</button>${BTN_DEL(`eliminarFondo('${esc(f.id)}')`, '')}</td>` : ''}</tr>`).join('')}</tbody></table>` : '<div class="empty">Sin cuentas.</div>'}</div>`;
 }
 async function editarFondo(id){
   const f = id ? (S.fondos || []).find(x => x.id === id) : {tipo:'banco', saldoInicial:0, fechaSaldo:hoyISO(), activo:true};
@@ -2178,7 +2183,7 @@ function ctCompras(){
       return `<tr ${c.anulada ? 'style="opacity:.45"' : ''}><td class="small">${fDate(c.fecha)}</td><td><b>${esc(provNombre(c.proveedorId))}</b><div class="small muted">Fact. ${esc(c.numeroFactura || 's/n')} · ${esc(tipos)} · ${c.condicion === 'credito' ? 'Crédito' : 'Contado'}${c.anulada ? ' · ANULADA' : ''}</div></td>
         <td class="r num">${gs(c.total)}</td><td class="r num">${c.anulada ? '—' : s.saldo > 0 ? `<b>${gs(s.saldo)}</b>` : '<span style="color:var(--ok)">Pagada</span>'}</td>
         <td class="r" style="white-space:nowrap">${!c.anulada && s.saldo > 0 ? (opAbierta ? `<span class="small muted">${esc(opAbierta.id)} ${opAbierta.estado}</span>` : `<button class="btn sm" onclick="nuevaOP('${esc(c.id)}')">Orden de pago</button>`) : ''}
-          ${!c.anulada && S.canAdmin ? `<button class="btn sm ghost" onclick="anularCompra('${esc(c.id)}')">Anular</button>` : ''}</td></tr>`; }).join('')}
+          ${!c.anulada && S.canAdmin ? `<button class="btn sm ghost" onclick="anularCompra('${esc(c.id)}')">Anular</button>` : ''}${BTN_DEL(`eliminarCompra('${esc(c.id)}')`, '')}</td></tr>`; }).join('')}
   </tbody></table>` : '<div class="empty"><b>Sin compras</b>Registrá las facturas de proveedores: materiales (entran al stock), gastos o activos.</div>'}</div>`;
 }
 let CP = null;
@@ -2248,7 +2253,7 @@ function ctProveedores(){
   return `<div class="card"><div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><h2>Proveedores</h2><button class="btn pri sm" onclick="nuevoProveedor()">+ Proveedor</button></div>
     ${L.length ? `<table class="t"><thead><tr><th>Proveedor</th><th class="hide-m">Contacto</th><th class="r">Compras</th><th class="r">Saldo a pagar</th><th></th></tr></thead><tbody>
     ${L.map(p => { const cs = (S.compras || []).filter(c => c.proveedorId === p.id && !c.anulada); return `<tr><td><b>${esc(p.nombre)}</b><div class="small muted">${p.ruc ? 'RUC ' + esc(p.ruc) : ''}${p.rubro ? ' · ' + esc(p.rubro) : ''}</div></td><td class="hide-m small">${esc([p.telefono, p.email].filter(Boolean).join(' · ') || '—')}</td>
-      <td class="r num">${gs(cs.reduce((s,c) => s + +c.total, 0))}</td><td class="r num"><b>${gs(cs.reduce((s,c) => s + Math.max(saldoCompra(c).saldo, 0), 0))}</b></td><td class="r"><button class="btn sm ghost" onclick="nuevoProveedor('${esc(p.id)}')">Editar</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin proveedores.</div>'}</div>`;
+      <td class="r num">${gs(cs.reduce((s,c) => s + +c.total, 0))}</td><td class="r num"><b>${gs(cs.reduce((s,c) => s + Math.max(saldoCompra(c).saldo, 0), 0))}</b></td><td class="r" style="white-space:nowrap"><button class="btn sm ghost" onclick="nuevoProveedor('${esc(p.id)}')">Editar</button>${BTN_DEL(`eliminarProveedor('${esc(p.id)}')`, '')}</td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">Sin proveedores.</div>'}</div>`;
 }
 async function nuevoProveedor(id){
   const p = id ? (S.proveedores || []).find(x => x.id === id) : {};
@@ -2272,6 +2277,7 @@ function ctStock(){
     ${L.map(m => { const s = st[m.id] || {cant:0, valor:0, avg:+m.precio || 0, entradas:0, salidas:0}; return `<tr><td><b>${esc(m.nombre)}</b>${s.negativo || s.cant < -1e-6 ? ' <span class="tag" style="background:var(--bad-soft);color:var(--bad)">Stock negativo</span>' : ''}</td>
       <td class="r num">${fmtN(s.cant, 2)} ${esc(m.unidad)}</td><td class="r num hide-m">${gs(s.avg)}</td><td class="r num">${gs(s.valor)}</td><td class="r num hide-m small">${fmtN(s.entradas, 2)} / ${fmtN(s.salidas, 2)}</td></tr>`; }).join('')}
   </tbody></table></div>
+  ${(S.stockajustes || []).length ? `<div class="card" style="margin-top:14px"><div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>Ajustes registrados</b></div><table class="t" style="font-size:13.5px"><tbody>${(S.stockajustes || []).slice().sort((a,b) => String(b.fecha).localeCompare(String(a.fecha))).map(a => `<tr><td class="small">${fDate(a.fecha)}</td><td>${esc((matById(a.materialId) || {}).nombre || '')}</td><td class="r num">${a.cantidad > 0 ? '+' : ''}${fmtN(a.cantidad, 2)}</td><td class="small muted">${esc(a.motivo || '')}</td><td class="r">${BTN_DEL(`eliminarAjuste('${esc(a.id)}')`, '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
   <p class="small muted">Entradas: compras de materiales. Salidas: materiales de cada presupuesto al confirmarse la venta (incluye el % de desperdicio). Stock negativo = se vendió más de lo comprado: revisar compras o hacer un ajuste.</p>`;
 }
 async function ajusteStock(){
@@ -2290,7 +2296,7 @@ function ctDiario(){
     <span class="small">Debe <b class="num">${gs(td)}</b> · Haber <b class="num">${gs(th)}</b> ${td === th ? '<span class="tag" style="background:var(--ok-soft);color:var(--ok)">Cuadra</span>' : '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">No cuadra</span>'}</span>
     <span class="grow"></span>${S.canAdmin ? `<button class="btn sm" onclick="asientoManual()">+ Asiento manual</button>` : ''}</div>
   ${L.length ? L.map(a => `<div class="card" style="margin-bottom:10px"><div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>N° ${a.n}</b> · ${fDate(a.fecha)} · ${esc(a.glosa)} <span class="small muted">(${a.origen})</span>
-      ${a.origen === 'manual' && S.canAdmin ? `<button class="btn sm ghost" style="float:right" onclick="anularAsiento('${esc(a.ref)}')">Anular</button>` : ''}</div>
+      ${a.origen === 'manual' && S.esAdmin ? `<span style="float:right">${BTN_DEL(`eliminarAsiento('${esc(a.ref)}')`)}</span>` : ''}${a.origen === 'manual' && S.canAdmin ? `<button class="btn sm ghost" style="float:right" onclick="anularAsiento('${esc(a.ref)}')">Anular</button>` : ''}</div>
     <table class="t" style="font-size:13.5px"><tbody>${a.lineas.map(l => `<tr><td style="padding-left:${l.haber ? 34 : 14}px">${l.cta} ${esc(nombreCta(l.cta))}</td><td class="r num" style="width:140px">${l.debe ? fmtN(l.debe) : ''}</td><td class="r num" style="width:140px">${l.haber ? fmtN(l.haber) : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')
     : '<div class="card empty"><b>Sin asientos en el mes</b>Se generan solos al registrar facturas, cobros, compras y pagos.</div>'}`;
 }
@@ -2352,6 +2358,81 @@ async function editarCta(cod){
 /* ===== menú "Más" para celular ===== */
 function viewMenu(){
   return `<div class="top"><div><h1>Menú</h1></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${ROUTES.filter(r => r.k !== 'menu').map(r => `<a href="#${r.k}" class="card pad" style="text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:8px;align-items:flex-start"><span style="width:26px;height:26px;color:var(--accent)">${IC[r.ic]}</span><b>${r.n}</b></a>`).join('')}</div>`;
+}
+
+
+/* ============ ELIMINAR REGISTROS (solo administradores) ============ */
+const BTN_DEL = (fn, txt = 'Eliminar') => S.esAdmin ? `<button class="btn sm ghost" style="color:var(--bad)" onclick="${fn}">🗑 ${txt}</button>` : '';
+const ETQ = {presupuestos:'Presupuesto', clientes:'Cliente', movimientos:'Movimiento de caja', ordenes:'Orden de pago', compras:'Compra', proveedores:'Proveedor', asientos:'Asiento manual', stockajustes:'Ajuste de stock', fondos:'Cuenta de dinero', facturas:'Factura SIFEN'};
+const ORDEN_DEL = ['movimientos','ordenes','compras','facturas','stockajustes','asientos','presupuestos','proveedores','clientes','fondos'];
+const pagosDeOP = id => (S.movimientos || []).filter(m => m.tipo === 'egreso' && m.opId === id);
+const opsDeCompra = id => (S.ordenes || []).filter(o => o.destino && o.destino.compraId === id);
+function depsPresupuesto(p){ return [
+  ...(S.movimientos || []).filter(m => m.presupuestoId === p.id).map(m => ({col:'movimientos', id:m.id, txt:`Cobro ${gs(m.monto)} del ${fDate(m.fecha)}`})),
+  ...(S.facturas || []).filter(f => f.presupuesto_id === p.id).map(f => ({col:'facturas', id:f.id, txt:`Factura SIFEN ${f.numero || ''} (${f.estado})`}))]; }
+function depsOP(o){ return pagosDeOP(o.id).map(m => ({col:'movimientos', id:m.id, txt:`Pago ${gs(m.monto)} del ${fDate(m.fecha)}`})); }
+function depsCompra(c){ return opsDeCompra(c.id).flatMap(o => [{col:'ordenes', id:o.id, txt:`${o.id} · ${gs(o.monto)} (${o.estado})`}, ...depsOP(o)]); }
+async function eliminarRegistros(titulo, principal, deps, nota){
+  if (!S.esAdmin) { toast('Solo un administrador puede eliminar registros'); return false; }
+  const todos = [principal, ...deps];
+  const ok = await dialog(titulo, `<p style="margin-top:0">Se va a eliminar <b>definitivamente</b>:</p>
+    <ul class="small" style="margin:0 0 10px;padding-left:18px">${todos.map(x => `<li>${esc(ETQ[x.col] || x.col)}: ${esc(x.txt)}</li>`).join('')}</ul>
+    ${deps.length ? `<div class="note warn" style="font-size:13px">${IC.warn}<div>Incluye ${deps.length} registro${deps.length > 1 ? 's' : ''} relacionado${deps.length > 1 ? 's' : ''}, para que no queden datos colgados ni la contabilidad descuadrada.</div></div>` : ''}
+    ${nota ? `<div class="note info" style="font-size:13px;margin-top:8px">${IC.info}<div>${nota}</div></div>` : ''}
+    <label class="row small" style="margin-top:12px"><input type="checkbox" id="delOk"> Entiendo que no se puede deshacer</label>`, 'Eliminar', () => { if (!$('#delOk').checked) { toast('Marcá la confirmación'); return false; } return true; });
+  if (!ok) return false;
+  const ord = todos.slice().sort((a,b) => ORDEN_DEL.indexOf(a.col) - ORDEN_DEL.indexOf(b.col));
+  try { for (const x of ord) await borrar(x.col, x.id); } catch(e) { toast('No se pudo eliminar todo: ' + (e.message || e)); return false; }
+  toast(`Eliminado${todos.length > 1 ? ' (' + todos.length + ' registros)' : ''}`); return true;
+}
+async function borrar(col, id){
+  if (col === 'facturas') {
+    if (S.mode === 'supa') { const {error} = await S.sb.from('facturas').delete().eq('id', id); if (error) throw error; }
+    S.facturas = (S.facturas || []).filter(f => f.id !== id); render(); return;
+  }
+  const m = col === 'movimientos' ? (S.movimientos || []).find(x => x.id === id) : null;
+  await del(col, id);
+  if (m && m.tipo === 'egreso') { const o = (S.ordenes || []).find(x => x.id === m.opId && x.pagoMovId === id);
+    if (o) { if (S.mode === 'supa') { o.estado = 'aprobada'; delete o.pagoMovId; render(); } // la base ya la revirtió
+      else { const d = {...o}; delete d.id; delete d.pagoMovId; d.estado = 'aprobada'; await put('ordenes', o.id, d); } } }
+}
+async function eliminarPresupuesto(id){ const p = S.presupuestos.find(x => x.id === id); if (!p) return;
+  const sifen = (S.facturas || []).some(f => f.presupuesto_id === id && ['approved','approved_obs','signed'].includes(f.estado));
+  const fm = (p.facturasManual || []).filter(f => f.estado === 'emitida');
+  if (await eliminarRegistros(`Eliminar ${p.numero}`, {col:'presupuestos', id, txt:`${p.numero} · ${(p.cliente || {}).nombre || ''}${fm.length ? ' (con factura registrada N° ' + fm.map(f => f.numero).join(', ') + ')' : ''}`}, depsPresupuesto(p),
+    (fm.length || sifen) ? 'Esto borra el registro en el sistema, pero la factura emitida sigue existiendo en la DNIT (e-Kuatia). Si corresponde, anulala allá.' : '')) { S.detailId = null; renderLayer(); } }
+async function eliminarFacturaRegistro(pid){ const p = S.presupuestos.find(x => x.id === pid); if (!p) return; const act = facturaManualActiva(p);
+  const ok = await dialog('Eliminar registro de factura', `Se borra del sistema el registro de la factura <b>${esc(act ? act.numero : '')}</b> (también los registros anulados de este presupuesto). <b>No anula la factura en e-Kuatia'i.</b><label class="row small" style="margin-top:12px"><input type="checkbox" id="delOk"> Entiendo que no se puede deshacer</label>`, 'Eliminar', () => $('#delOk').checked || (toast('Marcá la confirmación'), false));
+  if (ok) await patchPres(pid, {facturasManual: [], factura: null}, `Registro de factura eliminado por administrador${act ? ' (N° ' + act.numero + ')' : ''}`); }
+async function eliminarCliente(id){ const c = S.clientes.find(x => x.id === id); if (!c) return; const ps = presDeCliente(id);
+  let incluir = false;
+  if (ps.length) { const r = await dialog('El cliente tiene presupuestos', `<p style="margin-top:0">${esc(c.nombre)} tiene ${ps.length} presupuesto${ps.length > 1 ? 's' : ''}.</p>
+    <label class="row small"><input type="radio" name="dc" value="no" checked> Eliminar solo el cliente (los presupuestos se conservan, sin cliente agendado)</label>
+    <label class="row small" style="margin-top:6px"><input type="radio" name="dc" value="si"> Eliminar también sus presupuestos y cobros</label>`, 'Continuar', () => document.querySelector('input[name=dc]:checked').value);
+    if (!r) return; incluir = r === 'si'; }
+  const deps = incluir ? ps.flatMap(p => [{col:'presupuestos', id:p.id, txt:p.numero}, ...depsPresupuesto(p)]) : [];
+  if (await eliminarRegistros(`Eliminar cliente`, {col:'clientes', id, txt:c.nombre}, deps) && !incluir) {
+    for (const p of ps) { const d = clone(p); delete d.id; if (d.cliente) delete d.cliente.clienteId; try { await put('presupuestos', p.id, d); } catch(e) {} } } }
+async function eliminarMov(id){ const m = (S.movimientos || []).find(x => x.id === id); if (!m) return;
+  await eliminarRegistros('Eliminar movimiento', {col:'movimientos', id, txt:`${m.tipo} ${gs(m.monto)} del ${fDate(m.fecha)}${m.concepto ? ' · ' + m.concepto : ''}`}, [], m.tipo === 'egreso' ? `La orden ${esc(m.opId)} vuelve a "aprobada, por pagar".` : ''); }
+async function eliminarOP(id){ const o = (S.ordenes || []).find(x => x.id === id); if (!o) return;
+  await eliminarRegistros(`Eliminar ${id}`, {col:'ordenes', id, txt:`${o.beneficiario} · ${gs(o.monto)} (${o.estado})`}, depsOP(o)); }
+async function eliminarCompra(id){ const c = (S.compras || []).find(x => x.id === id); if (!c) return;
+  await eliminarRegistros('Eliminar compra', {col:'compras', id, txt:`${provNombre(c.proveedorId)} · Fact. ${c.numeroFactura || 's/n'} · ${gs(c.total)}`}, depsCompra(c)); }
+async function eliminarProveedor(id){ const p = (S.proveedores || []).find(x => x.id === id); if (!p) return;
+  const cs = (S.compras || []).filter(c => c.proveedorId === id);
+  await eliminarRegistros('Eliminar proveedor', {col:'proveedores', id, txt:p.nombre}, cs.flatMap(c => [{col:'compras', id:c.id, txt:`Fact. ${c.numeroFactura || 's/n'} · ${gs(c.total)}`}, ...depsCompra(c)])); }
+async function eliminarAsiento(id){ const a = (S.asientos || []).find(x => x.id === id); if (a) await eliminarRegistros('Eliminar asiento', {col:'asientos', id, txt:`${fDate(a.fecha)} · ${a.glosa}`}, []); }
+async function eliminarAjuste(id){ const a = (S.stockajustes || []).find(x => x.id === id); if (a) await eliminarRegistros('Eliminar ajuste de stock', {col:'stockajustes', id, txt:`${fDate(a.fecha)} · ${(matById(a.materialId) || {}).nombre || ''} ${a.cantidad} · ${a.motivo}`}, []); }
+async function eliminarFondo(id){ const f = (S.fondos || []).find(x => x.id === id); if (!f) return;
+  const ms = (S.movimientos || []).filter(m => m.fondoId === id || m.fondoDestinoId === id);
+  await eliminarRegistros('Eliminar cuenta de dinero', {col:'fondos', id, txt:f.nombre}, ms.map(m => ({col:'movimientos', id:m.id, txt:`${m.tipo} ${gs(m.monto)} del ${fDate(m.fecha)}`})), ms.length ? 'Si preferís conservar la historia, mejor desactivá la cuenta (Editar → Activa).' : ''); }
+
+/* --- permisos de usuario --- */
+async function cambiarPermiso(id, campo, valor){
+  const { error } = await S.sb.from('perfiles').update({ [campo]: valor }).eq('user_id', id);
+  if (error) { toast('No se pudo cambiar: ' + error.message.replace(/^.*?: /, '')); render(); return; }
+  const u = S.perfiles.find(x => x.user_id === id); if (u) u[campo] = valor; aplicarPerfiles(); render(); toast('Permiso actualizado');
 }
 
 /* ============ arranque ============ */
