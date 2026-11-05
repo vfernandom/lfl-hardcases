@@ -733,7 +733,7 @@ function renderSummary(){
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
       <button class="btn pri" ${(!d.cliente.nombre.trim() || !d.items.length || !S.params) ? 'disabled' : ''} onclick="saveDraft('pendiente')">${IC.check} ${S.editId ? 'Guardar versión y enviar a aprobación' : 'Guardar y enviar a aprobación'}</button>
-      ${!S.editId ? `<button class="btn" ${!d.cliente.nombre.trim() ? 'disabled' : ''} onclick="saveDraft('elaboracion')">Guardar como “En elaboración”</button>` : ''}
+      ${!S.editId ? `<button class="btn" ${!d.cliente.nombre.trim() ? 'disabled' : ''} onclick="saveDraft('elaboracion')">Guardar como borrador</button>` : ''}
     </div>
     <p class="small muted" style="margin:10px 0 0">Fórmula: costo = materiales + mano de obra + desperdicio + gastos + adicionales. Precio = costo ÷ (1 − margen), redondeado a ${gs(Pp.redondeo||1)}.</p>`;
 }
