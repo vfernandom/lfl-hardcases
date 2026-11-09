@@ -1057,12 +1057,13 @@ async function editMat(id){
   const r = await dialog(id ? 'Editar material' : 'Nuevo material', `<div style="display:flex;flex-direction:column;gap:10px">
     <label class="f">Nombre *<input class="in" id="mN" value="${esc(m.nombre)}"></label>
     <div class="grid2"><label class="f">Rol<select class="in" id="mR">${ROLES.map(r => `<option value="${r.k}" ${m.rol===r.k?'selected':''}>${r.n}</option>`).join('')}</select></label>
-    <label class="f">Unidad<input class="in" id="mU" value="${esc(m.unidad)}" placeholder="m², m, unidad, kit"></label></div>
+    <label class="f">Unidad<input class="in" id="mU" list="lst-unid" value="${esc(m.unidad)}" placeholder="Elegí o escribí"><datalist id="lst-unid">${UNIDADES.map(u => `<option value="${u}">`).join('')}</datalist></label></div>
     <div class="grid2"><label class="f">Precio vigente (₲) *<input class="in r" type="number" id="mP" value="${esc(m.precio)}"></label>
     <label class="f">Proveedor<input class="in" id="mV" value="${esc(m.proveedor||'')}"></label></div>
     ${id ? `<button class="btn sm bad" style="align-self:flex-start" id="mDel">Eliminar material</button>` : ''}</div>`, 'Guardar', () => {
       const n = $('#mN').value.trim(), pr = $('#mP').value; if (!n || pr === '') { toast('Nombre y precio son obligatorios'); return false; }
       return {nombre:n, rol:$('#mR').value, unidad:$('#mU').value.trim() || 'unidad', precio:pf(pr), proveedor:$('#mV').value.trim(), ejemplo:false, actualizado:now()}; });
+  if (r && precioSospechoso(r.unidad, r.precio) && !(await dialog('Revisá el precio', `La unidad es <b>${esc(r.unidad)}</b> y el precio ${gs(r.precio)} es <b>por cada ${esc(r.unidad)}</b>. Si el precio que tenés es por m² o por metro, cambiá la unidad a m² o m.`, 'Guardar igual'))) return;
   if (r) await put('materiales', id || 'm-' + uid(), r);
 }
 document.addEventListener('click', async e => {
@@ -2526,7 +2527,7 @@ function filasHoja(wb, nombre){
 const col = (o, ...pref) => { const k = Object.keys(o).find(k => pref.some(p => k.startsWith(p))); return k ? o[k] : ''; };
 
 function analizarCatalogo(wb){
-  const R = {matN:[], matU:[], proN:[], proU:[], errores:[], avisos:[], recetas:{}};
+  const R = {matN:[], matU:[], proN:[], proU:[], errores:[], avisos:[], recetas:{}, stock:[]};
   const mats = filasHoja(wb, 'Materiales') || [], pros = filasHoja(wb, 'Productos') || [], recs = filasHoja(wb, 'Recetas') || [];
   if (!mats.length && !pros.length && !recs.length) { R.errores.push('El archivo no tiene datos en las hojas Materiales, Productos o Recetas. ¿Es la plantilla de LFL?'); return R; }
   const porNombre = new Map(S.materiales.map(m => [normTxt(m.nombre), m]));
@@ -2538,10 +2539,17 @@ function analizarCatalogo(wb){
     if (vistos.has(k)) { R.errores.push(`${f}: "${nombre}" está repetido en el archivo.`); return; } vistos.add(k);
     if (!unidad) { R.errores.push(`${f}: falta la unidad de "${nombre}".`); return; }
     if (!(precio >= 0)) { R.errores.push(`${f}: precio inválido para "${nombre}" (${col(o,'precio')}).`); return; }
-    const ex = porNombre.get(k); const data = {nombre, rol, unidad, precio:Math.round(precio), proveedor:prov, ejemplo:false};
+    const sT = col(o, 'stock'); const sq = sT === '' || sT == null ? null : numXls(sT);
+    if (sq != null && !(sq >= 0)) { R.errores.push(`${f}: stock inválido para "${nombre}" (${sT}).`); return; }
+    if (precioSospechoso(unidad, precio)) R.avisos.push(`${f}: "${nombre}" está en ${unidad} y cuesta ${gs(precio)} por ${unidad}. ¿No es el precio por m² o por metro? Revisalo: el costo se multiplica por cada ${unidad}.`);
+    const ex = porNombre.get(k); const data = {nombre, rol, unidad, precio:Math.round(precio * 10000) / 10000, proveedor:prov, ejemplo:false};
     if (ex) { const cambios = ['nombre','rol','unidad','precio','proveedor'].filter(c => String(ex[c] ?? '') !== String(data[c] ?? '')); if (cambios.length || ex.ejemplo) R.matU.push({id:ex.id, data:{...((({id, ...x}) => x)(ex)), ...data, actualizado:now()}, antes:ex, cambios}); }
     else R.matN.push({id:'m-' + uid(), data:{...data, creado:now()}});
+    if (sq != null) R.stock.push({id: ex ? ex.id : R.matN[R.matN.length - 1].id, nombre, unidad, cant:sq, costo:Math.round(precio)});
   });
+  if (R.stock.length) { const {st} = motorStock();
+    R.stock = R.stock.map(x => { const s0 = st['m:' + x.id]; const nuevo = !s0 || !s0.kardex.length; const dif = Math.round((x.cant - (s0 ? s0.cant : 0)) * 10000) / 10000; return {...x, nuevo, dif}; })
+      .filter(x => x.nuevo ? x.cant > 0 : x.dif !== 0); }
   // materiales disponibles para recetas = app + archivo
   const matFinal = new Map(S.materiales.map(m => [normTxt(m.nombre), m.id])); R.matN.forEach(m => matFinal.set(normTxt(m.data.nombre), m.id));
   const porCod = new Map(S.productos.map(p => [normTxt(p.codigo), p]));
@@ -2591,12 +2599,13 @@ async function importarCatalogo(){
     try { const X = await cargarXLSX(); const wb = X.read(await f.arrayBuffer(), {type:'array'}); R = analizarCatalogo(wb); }
     catch(e) { toast('No se pudo leer el archivo: ' + e.message); return; }
     const lista = (t, arr, fn) => arr.length ? `<details ${arr.length <= 8 ? 'open' : ''}><summary><b>${t} (${arr.length})</b></summary><ul class="small" style="margin:4px 0 8px;padding-left:18px">${arr.map(fn).join('')}</ul></details>` : '';
-    const total = R.matN.length + R.matU.length + R.proN.length + R.proU.length;
+    const total = R.matN.length + R.matU.length + R.proN.length + R.proU.length + R.stock.length;
     const ok = await dialog(`Importar ${esc(f.name)}`, `<div style="max-height:60vh;overflow:auto">
       ${R.errores.length ? `<div class="note bad" style="margin-bottom:10px">${IC.warn}<div><b>${R.errores.length} error${R.errores.length > 1 ? 'es' : ''}</b> (esas filas no se importan):<ul style="margin:4px 0 0;padding-left:16px">${R.errores.slice(0, 30).map(e => `<li>${esc(e)}</li>`).join('')}${R.errores.length > 30 ? `<li>…y ${R.errores.length - 30} más</li>` : ''}</ul></div></div>` : ''}
       ${R.avisos.length ? `<div class="note warn" style="margin-bottom:10px">${IC.warn}<div>${R.avisos.map(esc).join('<br>')}</div></div>` : ''}
       ${lista('Materiales nuevos', R.matN, m => `<li>${esc(m.data.nombre)} · ${esc(m.data.unidad)} · ${gs(m.data.precio)}</li>`)}
       ${lista('Materiales que se actualizan', R.matU, m => `<li>${esc(m.data.nombre)}${m.cambios.includes('precio') ? ` · precio ${gs(m.antes.precio)} → <b>${gs(m.data.precio)}</b>` : ''}${m.cambios.filter(c => c !== 'precio').length ? ' · cambia ' + m.cambios.filter(c => c !== 'precio').join(', ') : ''}${!m.cambios.length && m.antes.ejemplo ? ' · deja de ser "ejemplo"' : ''}</li>`)}
+      ${lista('Stock que se carga', R.stock, x => `<li>${esc(x.nombre)}: ${x.nuevo ? `inventario inicial ${fmtN(x.cant, 2)} ${esc(x.unidad)} a ${gs(x.costo)}` : `ajuste ${x.dif > 0 ? '+' : ''}${fmtN(x.dif, 2)} ${esc(x.unidad)} (queda ${fmtN(x.cant, 2)})`}</li>`)}
       ${lista('Productos nuevos', R.proN, p => `<li><b>${esc(p.data.codigo)}</b> ${esc(p.data.nombre)} · ${fmtN(p.data.horas, 2)} h · ${p.data.bom.length} materiales</li>`)}
       ${lista('Productos que se actualizan', R.proU, p => `<li><b>${esc(p.data.codigo)}</b> ${esc(p.data.nombre)}${p.recetaNueva ? ` · receta reemplazada (${p.data.bom.length} materiales)` : ''}</li>`)}
       ${!total ? '<p>No hay cambios para importar.</p>' : '<p class="small muted" style="margin:6px 0 0">Nada se borra. Los presupuestos ya guardados no cambian; los nuevos usan los precios actualizados.</p>'}</div>`, total ? `Importar ${total} registro${total > 1 ? 's' : ''}` : 'Cerrar');
@@ -2604,6 +2613,9 @@ async function importarCatalogo(){
     try {
       await guardarVarios('materiales', [...R.matN, ...R.matU]);
       await guardarVarios('productos', [...R.proN, ...R.proU]);
+      const ini = R.stock.filter(x => x.nuevo), aj = R.stock.filter(x => !x.nuevo);
+      if (ini.length) await guardarStockMov({tipo:'inicial', fecha:hoyISO(), motivo:'Inventario inicial (planilla de materiales)', lineas:ini.map(x => ({item:'m:' + x.id, cant:x.cant, costoUnit:x.costo}))});
+      if (aj.length) await guardarStockMov({tipo:'ajuste', fecha:hoyISO(), motivo:'Conteo (planilla de materiales)', lineas:aj.map(x => ({item:'m:' + x.id, cant:x.dif}))});
       toast(`Catálogo actualizado: ${total} registro${total > 1 ? 's' : ''}`);
     } catch(e) { toast('Error al guardar: ' + (e.message || e)); }
   };
@@ -2626,7 +2638,8 @@ async function exportarCatalogo(){
   const wb = X.utils.book_new();
   const nm = id => (matById(id) || {}).nombre || '';
   const hoja = (nombre, cab, filas, anchos) => { const ws = X.utils.aoa_to_sheet([cab, cab.map(() => ''), ...filas]); ws['!cols'] = anchos.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, nombre); };
-  hoja('Materiales', ['Material','Rol','Unidad','Precio unitario ₲ (costo sin IVA)','Proveedor'], S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).map(m => [m.nombre, ROL_TXT[m.rol] || 'Otro', m.unidad, +m.precio || 0, m.proveedor || '']), [36,14,10,26,28]);
+  const {st} = motorStock();
+  hoja('Materiales', ['Material','Rol','Unidad','Precio unitario ₲ (costo sin IVA)','Proveedor','Stock actual (cantidad)'], S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).map(m => [m.nombre, ROL_TXT[m.rol] || 'Otro', m.unidad, +m.precio || 0, m.proveedor || '', Math.round(stockDe(st, 'm:' + m.id) * 100) / 100]), [36,14,10,26,28,20]);
   hoja('Productos', ['Código','Nombre','Medidas estándar','Horas por unidad','IVA','Precio actual ₲','Notas'], S.productos.map(p => [p.codigo, p.nombre, p.medidas || '', +p.horas || 0, p.tasaIva == null ? '' : (+p.tasaIva === 0 ? 'Exento' : +p.tasaIva), p.precioActual || '', p.notas || '']), [12,34,22,16,10,18,36]);
   hoja('Recetas', ['Código producto','Material','Cantidad por unidad'], S.productos.flatMap(p => (p.bom || []).map(b => [p.codigo, nm(b.materialId), +b.cant])), [18,36,20]);
   X.writeFile(wb, `catalogo_LFL_${hoyISO()}.xlsx`);
@@ -2639,6 +2652,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.detailId
 /* =====================================================================
    ERP · reglas a medida, cierre de mes, stock por movimientos, órdenes de trabajo
    ===================================================================== */
+const UNIDADES = ['unidad','m','mm','m²','mm²','litro','kg','kit','par','rollo'];
+function precioSospechoso(u, precio){ const n = String(u || '').toLowerCase().replace(/\s|\./g, '').replace('²', '2'); return (n === 'mm2' && +precio > 10) || (n === 'mm' && +precio > 1000); }
+function factorUnidad(u, tipo){ const n = String(u || '').toLowerCase().replace(/\s|\./g, '').replace('²', '2');
+  if (tipo === 'area') return n === 'mm2' ? 1e6 : n === 'cm2' ? 1e4 : 1;
+  if (tipo === 'largo') return n === 'mm' ? 1000 : n === 'cm' ? 100 : 1; return 1; }
 const REGLAS_DEF = {ejemplo:true, espesorPanel:9, espesorEspuma:10, mermaCorte:0, esquineros:8, cierresHasta:600, cierresChico:2, cierresGrande:4, manijas:2,
   bisagrasHasta:800, bisagrasChico:2, bisagrasGrande:3, ruedasPesoKg:20, ruedas:4, horasBase:3, horasPorM2:1.5,
   etapas:[{n:'Preparación de materiales',p:5},{n:'Corte de paneles',p:15},{n:'Corte de perfiles',p:10},{n:'Armado de caja',p:25},{n:'Colocación de herrajes',p:15},{n:'Interior (espuma)',p:15},{n:'Personalización',p:5},{n:'Control final',p:5},{n:'Embalaje',p:5}],
@@ -2664,7 +2682,7 @@ function geoCase(l, a, h, peso){
     esquinero:+R.esquineros, cierre: L <= +R.cierresHasta ? +R.cierresChico : +R.cierresGrande, manija:+R.manijas,
     bisagra: L <= +R.bisagrasHasta ? +R.bisagrasChico : +R.bisagrasGrande, rueda: (+peso||0) >= +R.ruedasPesoKg ? +R.ruedas : 0, consumible:1};
   const lineas = [];
-  Object.entries(q).forEach(([rol, cant]) => { if (!(cant > 0)) return; const m = matByRol(rol); if (m) lineas.push({materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0, cant:Math.round(cant*100)/100}); });
+  Object.entries(q).forEach(([rol, cant]) => { if (!(cant > 0)) return; const m = matByRol(rol); if (!m) return; const f = factorUnidad(m.unidad, ['placa','espuma'].includes(rol) ? 'area' : ['perfil','perfilcierre'].includes(rol) ? 'largo' : ''); lineas.push({materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0, cant:Math.round(cant*f*100)/100}); });
   return {lineas, horas: Math.round(((+R.horasBase||0) + (+R.horasPorM2||0) * areaExt) * 4) / 4, ext:{L, A, H}, areaExt};
 }
 
