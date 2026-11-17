@@ -437,7 +437,11 @@ async function put(col, id, data){
     persist(); render(); return;
   }
   if (S.mode === 'supa') {
-    const { error } = await S.sb.from('docs').upsert({ col, id, data });
+    // Si el documento ya existe se usa UPDATE: un upsert dispara también el control de INSERT en la base
+    // (p. ej. «Una orden de pago nace pendiente de aprobación» al aprobar una OP).
+    const existe = Array.isArray(S[col]) && S[col].some(x => x.id === id);
+    let { data: filas, error } = existe ? await S.sb.from('docs').update({ data }).eq('col', col).eq('id', id).select('id') : { data: null, error: null };
+    if (!error && !(filas && filas.length)) ({ error } = await S.sb.from('docs').upsert({ col, id, data }));
     if (error) { toast(/mes .* cerrado|cerrado/i.test(error.message) ? error.message : /row-level|permission|policy/i.test(error.message) ? 'No tenés permiso para guardar esto (solo socios).' : 'No se pudo guardar: ' + error.message); throw error; }
     aplicarDoc({ col, id, data }); render(); return;
   }
