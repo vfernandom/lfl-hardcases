@@ -12,7 +12,7 @@ N = Font(name=F, size=10)
 B = Font(name=F, size=10, bold=True)
 thin = Side(style='thin', color='D3D0C9')
 
-ROLES = ['Placa','Perfil','Perfil de cierre','Espuma','Cierre','Manija','Bisagra','Esquinero','Rueda','Consumibles','Otro']
+ROLES = ['Placa','Revestimiento','Forro','Espuma','Perfil','Perfil de cierre','Esquinero','Mata junta','Cierre','Bisagra','Manija','Rueda','Consumibles','Otro']
 MATS = [('Placa fenólico 9 mm','Placa','m²',95000,''),('Perfil aluminio unión','Perfil','m',28000,''),('Espuma 10 mm','Espuma','m²',40000,''),
         ('Cierre mariposa','Cierre','unidad',35000,''),('Manija retráctil','Manija','unidad',30000,''),('Bisagra','Bisagra','unidad',15000,''),
         ('Esquinero bola','Esquinero','unidad',9000,''),('Remaches y consumibles (kit)','Consumibles','kit',15000,'')]
@@ -38,7 +38,7 @@ lines = [
  ('• Precio del material = costo por unidad, SIN IVA (es lo que usa el cálculo del presupuesto).', None),
  ('• Rol del material: lo usa la app para estimar trabajos A MEDIDA. Valores: ' + ', '.join(ROLES) + '.', None),
  ('• IVA del producto: 10, 5 o Exento. Vacío = usa el IVA general de la app.', None),
- ('• Unidad del material: elegí de la lista (unidad, m, mm, m², mm², litro, kg, kit, par, rollo). Si una placa se carga en mm², la app convierte sola.', None),
+ ('• Unidad del material: elegí de la lista (unidad, placa, barra, m, mm, m², mm², litro, kg, kit, par, rollo). Si una placa se carga en mm², la app convierte sola.', None),
  ('• Stock actual (opcional): lo que hay hoy. La primera vez entra como inventario inicial al precio del material; las siguientes, la app ajusta la diferencia.', None),
  ('', None),
  ('Ejemplo de un producto completo (NO se importa desde esta hoja)', 'h'),
@@ -71,7 +71,7 @@ def hoja(nombre, cols, widths, obligatorias, notas):
 
 mat = hoja('Materiales', ['Material','Rol','Unidad','Precio unitario ₲ (costo sin IVA)','Proveedor','Stock actual (cantidad)'], [36,16,12,26,28,20],
            {'Material','Unidad','Precio unitario ₲ (costo sin IVA)'},
-           {'Rol':'Sirve para estimar trabajos a medida (placa = superficie, perfil = aristas, etc.).','Unidad':'Elegí de la lista: unidad, m, mm, m², mm², litro, kg, kit, par, rollo.','Stock actual (cantidad)':'Opcional: lo que hay hoy en la fábrica, en la unidad del material. La primera vez se carga como inventario inicial; después, la app ajusta la diferencia.'})
+           {'Rol':'Sirve para estimar trabajos a medida (placa = superficie, perfil = aristas, etc.).','Unidad':'Elegí de la lista: unidad, placa, barra, m, mm, m², mm², litro, kg, kit, par, rollo.','Stock actual (cantidad)':'Opcional: lo que hay hoy en la fábrica, en la unidad del material. La primera vez se carga como inventario inicial; después, la app ajusta la diferencia.'})
 for i,m in enumerate(MATS, start=3):
     for j,v in enumerate(m, start=1):
         c = mat.cell(row=i, column=j, value=v); c.font = N
@@ -83,7 +83,7 @@ rec = hoja('Recetas', ['Código producto','Material','Cantidad por unidad'], [18
            {'Código producto','Material','Cantidad por unidad'},
            {'Material':'Elegí de la lista (sale de la hoja Materiales).','Cantidad por unidad':'En la unidad del material: m², m, unidades…'})
 
-UNIDADES = ['unidad','m','mm','m²','mm²','litro','kg','kit','par','rollo']
+UNIDADES = ['unidad','placa','barra','m','mm','m²','mm²','litro','kg','kit','par','rollo']
 dv_u = DataValidation(type='list', formula1='"' + ','.join(UNIDADES) + '"', allow_blank=True, showErrorMessage=False)
 mat.add_data_validation(dv_u); dv_u.add('C3:C1000')
 dv_st = DataValidation(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True, showErrorMessage=True, error='Cantidad mayor o igual a 0.')
