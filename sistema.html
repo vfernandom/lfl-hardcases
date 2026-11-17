@@ -690,8 +690,10 @@ function viewEditor(){
             <div class="row small" style="margin-bottom:10px;gap:8px">Tipo<select class="in" style="width:auto" data-b="items.${i}.espec.tipoCase">${Object.entries(TIPOS_CASE).map(([k,n]) => `<option value="${k}" ${(it.espec||{}).tipoCase===k?'selected':''}>${n}</option>`).join('')}</select>
             Alto tapa (mm)<input class="in r" style="width:80px" type="number" data-b="items.${i}.espec.altoTapa" value="${esc((it.espec||{}).altoTapa||'')}">
             Peso contenido (kg)<input class="in r" style="width:70px" type="number" data-b="items.${i}.espec.peso" value="${esc((it.espec||{}).peso||'')}">
-            Puertas/tapas<input class="in r" style="width:60px" type="number" min="1" step="1" placeholder="1" data-b="items.${i}.espec.puertas" value="${esc((it.espec||{}).puertas||'')}"></div>
+            Puertas/tapas<input class="in r" style="width:60px" type="number" min="1" step="1" placeholder="1" data-b="items.${i}.espec.puertas" value="${esc((it.espec||{}).puertas||'')}">
+            Color<select class="in" style="width:auto" data-b="items.${i}.espec.color">${Object.keys(COLORES_CASE).map(k => `<option ${colorCase((it.espec||{}).color)===k?'selected':''}>${k}</option>`).join('')}</select></div>
             ${it.geo && it.lineas.length ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Cantidades y horas estimadas con las reglas de Configuración → Reglas a medida${reglas().ejemplo ? ' (todavía con valores de EJEMPLO)' : ''}. Revisalas antes de aprobar.</div></div>` : ''}` : (it.medidas ? `<div class="small muted" style="margin-bottom:8px">Medidas: ${esc(it.medidas)}</div>` : '')}
+          ${disenoEditor(it, i)}
           ${!(+it.horas) ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Falta el tiempo de fabricación: sin horas no se calcula mano de obra ni gastos de fábrica.</div></div>` : ''}
           <table class="lines"><thead><tr><th>Material</th><th style="width:90px" class="r">Cant./u</th><th class="r hide-m" style="width:110px">Precio</th><th class="r" style="width:110px">Subtotal/u</th><th style="width:30px"></th></tr></thead><tbody>
           ${(it.lineas||[]).map((l, j) => `${it.geo && l.rol && GRUPO_DE_ROL[l.rol] !== GRUPO_DE_ROL[(it.lineas[j-1]||{}).rol] ? `<tr><td colspan="5" class="small muted" style="font-weight:600;padding-top:8px">${esc(GRUPO_DE_ROL[l.rol])}</td></tr>` : ''}<tr>
@@ -2726,6 +2728,101 @@ function geoCase(l, a, h, peso, puertas){
   return {lineas, horas: Math.round(((+R.horasBase||0) + (+R.horasPorM2||0) * areaExt) * 4) / 4, ext:{L, A, H}, areaExt};
 }
 
+/* ---------- diseño de referencia (dibujo automático o imagen propia) ---------- */
+const COLORES_CASE = {Negro:['#2b2c2f','#1b1c1e','#3c3d41'], Blanco:['#ebebe7','#cfcfca','#f7f7f4'], Gris:['#6b6e73','#55585c','#83868b'],
+  Rojo:['#b3262f','#8e1d25','#cc3a43'], Azul:['#1f3f7a','#183263','#2b5197'], Plateado:['#b9bcc1','#9fa2a7','#d1d4d8']}; // [frente, lateral, tapa]
+const colorCase = t => { const n = normTxt(t); return Object.keys(COLORES_CASE).find(k => n.includes(normTxt(k))) || 'Negro'; };
+const _dibCache = {};
+// Dibujo en perspectiva del case con las medidas internas (mm). Devuelve PNG (dataURL). No se guarda: se rehace con las medidas.
+function dibujoCase(l, a, h, e){
+  e = e || {}; l = +l || 0; a = +a || 0; h = +h || 0; if (!(l && a && h)) return '';
+  const R = reglas(), w1 = (+R.espesorPanel || 0) + (+R.espesorEspuma || 0);
+  const key = JSON.stringify([l, a, h, e.altoTapa, e.peso, e.color, e.puertas, w1, R.ruedasPesoKg, R.ruedas, R.cierresHasta, R.cierresChico, R.cierresGrande]);
+  if (_dibCache[key]) return _dibCache[key];
+  const L = l + 2 * w1, A = a + 2 * w1, H = h + 2 * w1;
+  const tapa = +e.altoTapa > 0 ? Math.min(+e.altoTapa + w1, H * 0.9) : H * 0.25;
+  const ruedas = (+e.peso || 0) >= (+R.ruedasPesoKg || Infinity) && +R.ruedas > 0;
+  const nCierres = L <= +R.cierresHasta ? +R.cierresChico || 0 : +R.cierresGrande || 0;
+  const W = 1200, HC = 820, cv = document.createElement('canvas'); cv.width = W; cv.height = HC; const c = cv.getContext('2d');
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, HC);
+  const ang = 35 * Math.PI / 180, k = 0.55, mg = 120, extra = ruedas ? 50 : 0;
+  const sc = Math.min((W - 2 * mg) / (L + A * k * Math.cos(ang)), (HC - 2 * mg - extra) / (H + A * k * Math.sin(ang)));
+  const dx = A * k * Math.cos(ang) * sc, dy = A * k * Math.sin(ang) * sc, fw = L * sc, fh = H * sc;
+  const ox = (W - fw - dx) / 2, oy = (HC - fh - dy - extra) / 2 + dy + fh;
+  const P0 = [ox, oy], P1 = [ox + fw, oy], P2 = [ox + fw, oy - fh], P3 = [ox, oy - fh], add = p => [p[0] + dx, p[1] - dy];
+  const Q1 = add(P1), Q2 = add(P2), Q3 = add(P3), col = COLORES_CASE[colorCase(e.color)];
+  const poly = (pts, fill) => { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.closePath(); c.fillStyle = fill; c.fill(); };
+  const linea = (pts, wd, color) => { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.lineWidth = wd; c.strokeStyle = color; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(); };
+  const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+  // sombra
+  c.save(); c.globalAlpha = 0.12; poly([[P0[0] + 10, P0[1] + 8 + extra], [P1[0] + 10, P1[1] + 8 + extra], [Q1[0] + 10, Q1[1] + 8 + extra], [Q1[0] - fw + 10, Q1[1] + 8 + extra]], '#000'); c.restore();
+  // ruedas traseras (detrás del cuerpo)
+  const rr = clamp(45 * sc, 12, 30), rueda = (x, y) => { c.beginPath(); c.arc(x, y, rr, 0, 7); c.fillStyle = '#151515'; c.fill(); c.beginPath(); c.arc(x, y, rr * 0.45, 0, 7); c.fillStyle = '#9a9da2'; c.fill(); };
+  if (ruedas) rueda(Q1[0] - rr * 1.3, Q1[1] + rr * 0.9);
+  // caras
+  poly([P0, P1, P2, P3], col[0]); poly([P1, Q1, Q2, P2], col[1]); poly([P3, P2, Q2, Q3], col[2]);
+  // tapa(s): perfil M en la línea de cierre
+  const pw = clamp(30 * sc, 5, 20), alu = '#c3c7cd', brillo = '#eef0f2';
+  const lineaTapa = yl => { const pts = [[ox, yl], [ox + fw, yl], [ox + fw + dx, yl - dy]]; linea(pts, pw * 0.75, '#8d9197'); linea(pts, pw * 0.25, brillo); return yl; };
+  const yTapa = lineaTapa(P3[1] + tapa * sc); if (+e.puertas >= 2) lineaTapa(P0[1] - tapa * sc);
+  // perfiles L en las aristas
+  [[P0, P1, P2, P3, P0], [P1, Q1, Q2, P2], [P3, Q3, Q2]].forEach(pts => { linea(pts, pw, alu); linea(pts, pw * 0.28, brillo); });
+  // cierres sobre la línea de la tapa
+  const cw = clamp(80 * sc, 20, 64), ch = clamp(62 * sc, 16, 50);
+  for (let i = 0; i < nCierres && i < 6; i++) { const x = ox + fw * (i + 1) / (nCierres + 1);
+    c.fillStyle = '#d4d7db'; c.strokeStyle = '#7d8187'; c.lineWidth = 2; c.beginPath(); c.roundRect ? c.roundRect(x - cw / 2, yTapa - ch / 2, cw, ch, 4) : c.rect(x - cw / 2, yTapa - ch / 2, cw, ch); c.fill(); c.stroke();
+    c.fillStyle = '#5b5f65'; c.fillRect(x - cw * 0.22, yTapa - ch * 0.12, cw * 0.44, ch * 0.4); }
+  // manija en el lateral
+  const mx = (P1[0] + Q1[0] + Q2[0] + P2[0]) / 4, my = (P1[1] + Q1[1] + Q2[1] + P2[1]) / 4 + (yTapa > (P1[1] + P2[1]) / 2 ? -fh * 0.12 : fh * 0.08);
+  const ux = dx * 0.32, uy = -dy * 0.32, mh = clamp(fh * 0.1, 10, 40);
+  poly([[mx - ux, my - uy - mh], [mx + ux, my + uy - mh], [mx + ux, my + uy + mh], [mx - ux, my - uy + mh]], '#c9ccd1');
+  poly([[mx - ux * 0.7, my - uy * 0.7 - mh * 0.45], [mx + ux * 0.7, my + uy * 0.7 - mh * 0.45], [mx + ux * 0.7, my + uy * 0.7 + mh * 0.45], [mx - ux * 0.7, my - uy * 0.7 + mh * 0.45]], '#4a4e54');
+  // cantos bola
+  const rb = clamp(26 * sc, 7, 20);
+  [P0, P1, P2, P3, Q1, Q2, Q3].forEach(([x, y]) => { const g = c.createRadialGradient(x - rb * 0.35, y - rb * 0.35, rb * 0.1, x, y, rb); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#c4c8ce'); g.addColorStop(1, '#6f747b'); c.beginPath(); c.arc(x, y, rb, 0, 7); c.fillStyle = g; c.fill(); });
+  if (ruedas) { rueda(P0[0] + rr * 1.3, P0[1] + rr * 0.9); rueda(P1[0] - rr * 1.3, P1[1] + rr * 0.9); }
+  // cotas (medidas internas)
+  c.fillStyle = '#333'; c.strokeStyle = '#888'; c.lineWidth = 1.5; c.font = 'bold 26px Helvetica, Arial, sans-serif'; c.textAlign = 'center';
+  const yb = oy + extra + 34; linea([[ox, yb - 8], [ox, yb + 8]], 1.5, '#888'); linea([[ox + fw, yb - 8], [ox + fw, yb + 8]], 1.5, '#888'); linea([[ox, yb], [ox + fw, yb]], 1.5, '#888');
+  c.fillStyle = '#fff'; const t1 = `${fmtN(l, 0)} mm`, tw = c.measureText(t1).width + 16; c.fillRect(ox + fw / 2 - tw / 2, yb - 16, tw, 32); c.fillStyle = '#333'; c.fillText(t1, ox + fw / 2, yb + 9);
+  const xh = ox - 40; linea([[xh - 8, P0[1]], [xh + 8, P0[1]]], 1.5, '#888'); linea([[xh - 8, P3[1]], [xh + 8, P3[1]]], 1.5, '#888'); linea([[xh, P0[1]], [xh, P3[1]]], 1.5, '#888');
+  c.save(); c.translate(xh - 14, (P0[1] + P3[1]) / 2); c.rotate(-Math.PI / 2); c.fillText(`${fmtN(h, 0)} mm`, 0, 0); c.restore();
+  c.save(); c.translate((P1[0] + Q1[0]) / 2 + 34, (P1[1] + Q1[1]) / 2 + 30 + extra * 0.5); c.rotate(-ang); c.fillText(`${fmtN(a, 0)} mm`, 0, 0); c.restore();
+  c.font = '20px Helvetica, Arial, sans-serif'; c.fillStyle = '#888'; c.textAlign = 'left';
+  c.fillText(`Imagen referencial · medidas internas ${fmtN(l, 0)} × ${fmtN(a, 0)} × ${fmtN(h, 0)} mm · ${colorCase(e.color)}`, 24, HC - 22);
+  return (_dibCache[key] = cv.toDataURL('image/png'));
+}
+// Qué imagen lleva un renglón: imagen subida, dibujo automático (cases a medida con medidas) o ninguna.
+function disenoDe(it, espec, dims){
+  const d = it.diseno || {}; if (d.modo === 'ninguno') return '';
+  if (d.modo === 'imagen' && d.img) return d.img;
+  const m = dims || it.dims || {}; if ((it.tipo === 'medida' || it.tipo === 'a_medida' || d.modo === 'auto') && m.l && m.a && m.h) return dibujoCase(m.l, m.a, m.h, espec || it.espec);
+  return '';
+}
+function achicarImagen(file, max, q){ return new Promise((ok, mal) => { const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => { const r = Math.min(1, max / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * r); cv.height = Math.round(im.height * r);
+    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+    let out = cv.toDataURL('image/jpeg', q); if (out.length > 400000) out = cv.toDataURL('image/jpeg', 0.55); ok(out); };
+  im.onerror = () => { URL.revokeObjectURL(url); mal(new Error('No se pudo leer la imagen')); }; im.src = url; }); }
+function medidasImg(src){ return new Promise(ok => { const im = new Image(); im.onload = () => ok({w:im.width, h:im.height}); im.onerror = () => ok(null); im.src = src; }); }
+function refrescarDraft(){ $('#view').dataset.sig = ''; render(); }
+function disenoSubir(i){ const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return;
+    try { S.draft.items[i].diseno = {modo:'imagen', img: await achicarImagen(f, 1100, 0.75), nombre:f.name}; refrescarDraft(); toast('Imagen cargada: sale en el PDF y pasa a la OT'); } catch(e) { toast(e.message); } };
+  inp.click(); }
+function disenoModo(i, modo){ const it = S.draft.items[i]; if (modo === 'auto' && !(it.dims && it.dims.l && it.dims.a && it.dims.h)) { toast('Completá largo, ancho y alto para generar el dibujo.'); return; }
+  it.diseno = {modo}; refrescarDraft(); }
+function disenoEditor(it, i){
+  const src = disenoDe(it), d = it.diseno || {}, auto = it.tipo === 'medida';
+  return `<div class="row" style="gap:12px;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap">
+    <div style="flex:0 0 auto">${src ? `<img src="${src}" alt="Diseño" style="width:220px;max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;display:block">` : `<div class="small muted" style="width:220px;padding:22px 10px;border:1px dashed var(--line);border-radius:8px;text-align:center">Sin diseño de referencia</div>`}</div>
+    <div style="flex:1 1 200px"><div class="small" style="font-weight:600;margin-bottom:4px">Diseño de referencia</div>
+      <div class="small muted" style="margin-bottom:8px">${d.modo === 'imagen' ? 'Imagen propia' + (d.nombre ? ' · ' + esc(d.nombre) : '') : src ? 'Dibujo automático con las medidas, color y tapa' : auto ? 'Completá las medidas para el dibujo automático, o subí una imagen' : 'Subí una imagen (render, foto o diseño del cliente)'}. Sale en el PDF del presupuesto y pasa a la OT.</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">${auto ? `<button class="btn sm" onclick="disenoModo(${i},'auto')">${d.modo === 'auto' || (!d.modo && src) ? 'Actualizar dibujo' : 'Dibujo automático'}</button>` : ''}
+        <button class="btn sm" onclick="disenoSubir(${i})">${d.modo === 'imagen' ? 'Cambiar imagen' : 'Subir imagen'}</button>
+        ${src ? `<button class="btn sm ghost" onclick="disenoModo(${i},'ninguno')">Quitar</button>` : ''}</div></div></div>`;
+}
+
 /* ---------- stock por movimientos ---------- */
 function itemInfo(k){
   const t = String(k).slice(0,1), id = String(k).slice(2);
@@ -2939,6 +3036,7 @@ async function generarOTs(p, fechaPrometida){
     await put('ots', id, {numero:id, tipo: medida ? 'a_medida' : 'estandar', presupuestoId:p.id, presNum:p.numero, renglon:i + 1, clienteId:(p.cliente || {}).clienteId || null, cliente:(p.cliente || {}).nombre || '',
       productoId: it.productoId || null, codigo:it.codigo, descripcion: it.nombre + (it.medidas ? ` (${it.medidas})` : ''), cantidad:q,
       espec: medida ? {...(it.espec || {}), l:+(it.dims || {}).l || 0, a:+(it.dims || {}).a || 0, h:+(it.dims || {}).h || 0} : null,
+      diseno: it.diseno && it.diseno.modo === 'imagen' && it.diseno.img ? {modo:'imagen', img:it.diseno.img} : it.diseno && it.diseno.modo === 'ninguno' ? null : medida ? {modo:'auto'} : null,
       materiales:(it.lineas || []).filter(l => l.materialId).map(l => ({materialId:l.materialId, requerido: Math.round((+l.cant || 0) * q * desp * 100) / 100})),
       etapas, horasEst, estado: medida ? 'diseno' : 'planificada', prioridad:2, fechaPrometida: fechaPrometida || '',
       costoEst:{mat:Math.round(matEst), mo:Math.round(horasEst * tarifa), gf:Math.round(horasEst * gh)},
@@ -3016,6 +3114,7 @@ function dibujarOT(){
       <label class="f">Fecha prometida<input class="in" type="date" value="${esc(o.fechaPrometida || '')}" onchange="patchOT('${esc(o.id)}',{fechaPrometida:this.value},'Fecha prometida: '+this.value)" ${['cerrada','anulada','entregada'].includes(o.estado) ? 'disabled' : ''}></label>
       <label class="f">Prioridad<select class="in" onchange="patchOT('${esc(o.id)}',{prioridad:+this.value})">${[[1,'Urgente'],[2,'Normal'],[3,'Baja']].map(([v,n]) => `<option value="${v}" ${+o.prioridad===v?'selected':''}>${n}</option>`).join('')}</select></label>
       <label class="f">Responsable<input class="in" value="${esc(o.responsable || '')}" onchange="patchOT('${esc(o.id)}',{responsable:this.value.trim()})"></label></div></div>
+    ${(() => { const src = o.diseno ? disenoDe({tipo:o.tipo, diseno:o.diseno}, o.espec, o.espec) : ''; return src ? `<div class="card pad"><h3 style="margin-bottom:10px">Diseño de referencia</h3><img src="${src}" alt="Diseño" style="width:100%;max-width:640px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block"><div class="small muted" style="margin-top:6px">${o.diseno.modo === 'imagen' ? 'Imagen cargada en el presupuesto' : 'Dibujo automático con las medidas y especificación de esta OT'}</div></div>` : ''; })()}
     ${o.tipo === 'a_medida' ? `<div class="card pad"><h3 style="margin-bottom:10px">Especificación del case</h3>
       <div class="grid4" style="gap:10px">
         <label class="f">Tipo<select class="in" ${editable ? '' : 'disabled'} onchange="guardarEspec('tipoCase',this.value)">${Object.entries(TIPOS_CASE).map(([k,n]) => `<option value="${k}" ${e.tipoCase===k?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -3324,6 +3423,22 @@ const tablaPdf = (doc, opts) => doc.autoTable(Object.assign({theme:'plain', styl
   headStyles:{fillColor:TINTA, textColor:[255, 255, 255], fontStyle:'bold', fontSize:8.5}, margin:{left:16, right:16}}, opts));
 
 /* ---------- presupuesto ---------- */
+// Imágenes de diseño de referencia (una por renglón que tenga), con título; agrega páginas si hace falta.
+async function pdfDisenos(doc, y, lista){
+  lista = lista.filter(x => x.src); if (!lista.length) return y;
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  if (y > H - 90) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.text('DISEÑO DE REFERENCIA', 16, y); y += 5;
+  for (const d of lista) {
+    const m = await medidasImg(d.src); if (!m) continue;
+    let w = W - 32, h = w * m.h / m.w; if (h > 105) { h = 105; w = h * m.w / m.h; }
+    if (y + h + 9 > H - 18) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...TINTA); doc.text(doc.splitTextToSize(d.titulo, W - 32)[0], 16, y + 3); y += 6;
+    try { doc.addImage(d.src, /^data:image\/png/.test(d.src) ? 'PNG' : 'JPEG', (W - w) / 2, y, w, h); } catch(e) {}
+    doc.setDrawColor(225); doc.setLineWidth(0.2); doc.rect((W - w) / 2, y, w, h); y += h + 7;
+  }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.text('Imágenes referenciales: el producto final puede variar en detalles de terminación.', 16, y); return y + 10;
+}
 async function pdfPresupuesto(id, compartir){
   const p = S.presupuestos.find(x => x.id === id); if (!p) return; const vers = p.versiones || []; const ver = vers[vers.length - 1]; if (!ver) return;
   let doc; try { doc = await nuevoPDF(); } catch(e) { return; }
@@ -3349,6 +3464,7 @@ async function pdfPresupuesto(id, compartir){
   if (ver.notas) cond.unshift(ver.notas);
   if (cond.length) { y = pdfBloque(doc, 16, y, W - 32, 'Observaciones', cond, true) + 2; }
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS); doc.text('Precios en guaraníes. Medidas en milímetros.', 16, y + 2); y += 12;
+  y = await pdfDisenos(doc, y, (ver.items || []).map((it, i) => ({titulo:`${i + 1}. ${it.codigo === 'A medida' ? (it.nombre || 'Case a medida') : (it.codigo || '') + ' – ' + (it.nombre || '')}${it.medidas ? ' (' + it.medidas + ')' : ''}`, src:disenoDe(it)})));
   pdfFirmas(doc, y, ['Aceptación del cliente']);
   if (['solicitud', 'elaboracion', 'pendiente'].includes(p.estado)) pdfMarcaAgua(doc, 'BORRADOR');
   pdfPie(doc, `${empresa().nombre} · Presupuesto ${num}`);
