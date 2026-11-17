@@ -685,7 +685,8 @@ function viewEditor(){
             <button class="btn sm" onclick="recalcGeo(${i})">Estimar materiales y horas</button></div>
             <div class="row small" style="margin-bottom:10px;gap:8px">Tipo<select class="in" style="width:auto" data-b="items.${i}.espec.tipoCase">${Object.entries(TIPOS_CASE).map(([k,n]) => `<option value="${k}" ${(it.espec||{}).tipoCase===k?'selected':''}>${n}</option>`).join('')}</select>
             Alto tapa (mm)<input class="in r" style="width:80px" type="number" data-b="items.${i}.espec.altoTapa" value="${esc((it.espec||{}).altoTapa||'')}">
-            Peso contenido (kg)<input class="in r" style="width:70px" type="number" data-b="items.${i}.espec.peso" value="${esc((it.espec||{}).peso||'')}"></div>
+            Peso contenido (kg)<input class="in r" style="width:70px" type="number" data-b="items.${i}.espec.peso" value="${esc((it.espec||{}).peso||'')}">
+            Puertas/tapas<input class="in r" style="width:60px" type="number" min="1" step="1" placeholder="1" data-b="items.${i}.espec.puertas" value="${esc((it.espec||{}).puertas||'')}"></div>
             ${it.geo && it.lineas.length ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Cantidades y horas estimadas con las reglas de Configuración → Reglas a medida${reglas().ejemplo ? ' (todavía con valores de EJEMPLO)' : ''}. Revisalas antes de aprobar.</div></div>` : ''}` : (it.medidas ? `<div class="small muted" style="margin-bottom:8px">Medidas: ${esc(it.medidas)}</div>` : '')}
           ${!(+it.horas) ? `<div class="note warn" style="margin-bottom:10px;font-size:12.5px">${IC.warn}<div>Falta el tiempo de fabricación: sin horas no se calcula mano de obra ni gastos de fábrica.</div></div>` : ''}
           <table class="lines"><thead><tr><th>Material</th><th style="width:90px" class="r">Cant./u</th><th class="r hide-m" style="width:110px">Precio</th><th class="r" style="width:110px">Subtotal/u</th><th style="width:30px"></th></tr></thead><tbody>
@@ -771,7 +772,7 @@ document.addEventListener('change', e => {
   if (t.dataset.mat) { const [i,j] = t.dataset.mat.split('.').map(Number); const m = matById(t.value); if (m) { Object.assign(S.draft.items[i].lineas[j], {materialId:m.id, nombre:m.nombre, unidad:m.unidad, precio:+m.precio||0}); render(); } }
 });
 function addMedida(){ S.draft.items.push(itemMedida('', '', '', 1, '')); render(); }
-function recalcGeo(i){ const it = S.draft.items[i]; const {l,a,h} = it.dims||{}; if (!(l&&a&&h)) { toast('Completá largo, ancho y alto.'); return; } it.dims.u = 'mm'; it.espec = it.espec || {}; const g = geoCase(l, a, h, it.espec.peso); it.lineas = g.lineas; it.horas = g.horas; it.medidas = `${l} × ${a} × ${h} mm`; it.geo = true; if (!it.lineas.length) toast('No hay materiales con rol asignado en Configuración → Materiales.'); else toast(`Exterior aprox. ${Math.round(g.ext.L)} × ${Math.round(g.ext.A)} × ${Math.round(g.ext.H)} mm · ${fmtN(g.horas, 2)} h/u`); $('#view').dataset.sig = ''; render(); }
+function recalcGeo(i){ const it = S.draft.items[i]; const {l,a,h} = it.dims||{}; if (!(l&&a&&h)) { toast('Completá largo, ancho y alto.'); return; } it.dims.u = 'mm'; it.espec = it.espec || {}; const g = geoCase(l, a, h, it.espec.peso, it.espec.puertas); it.lineas = g.lineas; it.horas = g.horas; it.medidas = `${l} × ${a} × ${h} mm`; it.geo = true; if (!it.lineas.length) toast('No hay materiales con rol asignado en Configuración → Materiales.'); else toast(`Exterior aprox. ${Math.round(g.ext.L)} × ${Math.round(g.ext.A)} × ${Math.round(g.ext.H)} mm · ${fmtN(g.horas, 2)} h/u`); $('#view').dataset.sig = ''; render(); }
 function rmItem(i){ S.draft.items.splice(i,1); render(); }
 function addLinea(i){ S.draft.items[i].lineas.push({materialId:'', nombre:'', unidad:'', precio:0, cant:1}); render(); }
 function rmLinea(i,j){ S.draft.items[i].lineas.splice(j,1); render(); }
@@ -2688,7 +2689,7 @@ function cantFormato(m, base, tipo){
   }
   return base;
 }
-const REGLAS_DEF = {ejemplo:true, espesorPanel:9, espesorEspuma:10, mermaCorte:0, esquineros:8, matajuntas:1, cierresHasta:600, cierresChico:2, cierresGrande:4, manijas:2,
+const REGLAS_DEF = {ejemplo:true, espesorPanel:9, espesorEspuma:10, mermaCorte:0, esquineros:8, matajuntas:8, cierresHasta:600, cierresChico:2, cierresGrande:2, manijas:2,
   bisagrasHasta:800, bisagrasChico:2, bisagrasGrande:3, ruedasPesoKg:20, ruedas:4, horasBase:3, horasPorM2:1.5,
   etapas:[{n:'Preparación de materiales',p:5},{n:'Corte de paneles',p:15},{n:'Corte de perfiles',p:10},{n:'Armado de caja',p:25},{n:'Colocación de herrajes',p:15},{n:'Interior (espuma)',p:15},{n:'Personalización',p:5},{n:'Control final',p:5},{n:'Embalaje',p:5}],
   checklist:['Medidas internas dentro de tolerancia (±2 mm)','Tapa alineada y cierres que traban parejo','Remaches y esquineros firmes','Ruedas y manijas firmes','Espuma pegada y sin cortes visibles','Terminación sin rayas ni golpes','Logo y rotulado correctos','Foto del case terminado adjunta']};
@@ -2705,12 +2706,12 @@ function chequeoCierre(col, nuevo, viejo){
 }
 
 /* ---------- geometría de cases a medida (mm) con reglas editables ---------- */
-function geoCase(l, a, h, peso){
+function geoCase(l, a, h, peso, puertas){
   const R = reglas(); l=+l||0; a=+a||0; h=+h||0; const pared = 2 * ((+R.espesorPanel||0) + (+R.espesorEspuma||0));
   const L = l + pared, A = a + pared, H = h + pared;
   const areaExt = 2*(L*A + L*H + A*H)/1e6, areaInt = 2*(l*a + l*h + a*h)/1e6, merma = 1 + (+R.mermaCorte||0)/100;
   const q = {placa: areaExt*merma, revestimiento: areaExt*merma, forro: areaInt*merma, espuma: areaInt*merma, perfil: 4*(L+A+H)/1000, perfilcierre: 4*(L+A)/1000,
-    esquinero:+R.esquineros, matajunta:+R.matajuntas, cierre: L <= +R.cierresHasta ? +R.cierresChico : +R.cierresGrande, manija:+R.manijas,
+    esquinero:+R.esquineros, matajunta:+R.matajuntas * Math.max(1, +puertas || 1), cierre: L <= +R.cierresHasta ? +R.cierresChico : +R.cierresGrande, manija:+R.manijas,
     bisagra: L <= +R.bisagrasHasta ? +R.bisagrasChico : +R.bisagrasGrande, rueda: (+peso||0) >= +R.ruedasPesoKg ? +R.ruedas : 0, consumible:1};
   const lineas = [];
   // Recorre los roles en el orden de GRUPOS_EST; si hay varios materiales con el mismo rol (y marcados para estimar), entran todos.
@@ -3164,7 +3165,7 @@ function viewReglas(ro){
   return `<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>Reglas para cases a medida ${R.ejemplo ? '<span class="ej">Ejemplo</span>' : ''}</h2></div>
     <p class="small muted" style="margin-top:0">Con las medidas internas (mm) del presupuesto, la app calcula la lista de materiales y las horas. Los materiales se eligen por su <b>rol</b> (Configuración → Materiales). Definí estos valores con el taller.</p>
     <h3 style="margin:10px 0">Paredes y merma</h3><div class="grid3">${f('espesorPanel','Espesor de panel (mm)')}${f('espesorEspuma','Espesor de espuma (mm)')}${f('mermaCorte','Merma de corte de paneles (%)','Adicional al desperdicio general')}</div>
-    <h3 style="margin:16px 0 10px">Herrajes</h3><div class="grid4">${f('esquineros','Cantos bola / esquineros')}${f('matajuntas','Mata juntas por case')}${f('cierresHasta','Cierres: largo límite (mm)')}${f('cierresChico','Cierres hasta el límite')}</div>
+    <h3 style="margin:16px 0 10px">Herrajes</h3><div class="grid4">${f('esquineros','Cantos bola / esquineros')}${f('matajuntas','Mata juntas por puerta/tapa')}${f('cierresHasta','Cierres: largo límite (mm)')}${f('cierresChico','Cierres hasta el límite')}</div>
     <div class="grid4" style="margin-top:10px">${f('cierresGrande','Cierres por encima')}</div>
     <div class="grid4" style="margin-top:10px">${f('manijas','Manijas')}${f('bisagrasHasta','Bisagras: largo límite (mm)')}${f('bisagrasChico','Bisagras hasta el límite')}${f('bisagrasGrande','Bisagras por encima')}</div>
     <div class="grid4" style="margin-top:10px">${f('ruedasPesoKg','Ruedas desde peso (kg)')}${f('ruedas','Cantidad de ruedas')}</div>
