@@ -2467,7 +2467,9 @@ function tablaLibroIVA(F, celdas, vacio){
 }
 function ctLibroVentas(){
   const sel = selMesCt(); const F = filasLibroVentas(S.ct.mes);
-  const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {}; return {...r, falta:Math.max(r.cobrado, p.estado === 'venta' ? r.venta : 0) - r.facturado}; }).filter(r => r.falta > 0);
+  const totalCI = p => { const v = (p.versiones || [])[(p.versiones || []).length - 1]; if (!v || !v.calc) return +p.precioFinal || 0; const t = +(v.params && v.params.ivaPct) || 0; return Math.round((+v.calc.precio || 0) + (t ? (+v.calc.iva || 0) : 0)); }; // precio del presupuesto es sin IVA
+  const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {};
+    return {...r, falta: r.facturado ? r.cobrado - r.facturado : Math.max(r.cobrado, p.estado === 'venta' ? totalCI(p) : 0)}; }).filter(r => r.falta > 0); // con factura: solo si se cobró de más
   return `<div class="row" style="margin-bottom:12px">${sel}<span class="small">IVA débito del mes: <b class="num">${gs(sumaD(F, 'iva'))}</b></span></div>
   ${tablaLibroIVA(F, x => `<td><b>${esc(x.numero || 's/n')}</b><div class="small muted">${esc(x.presNum || '')}</div></td><td>${esc(x.cliente || '—')}<div class="small muted">${x.doc ? 'RUC/CI ' + esc(x.doc) : ''}</div></td>`, '<b>Sin facturas en el mes</b>Las ventas entran acá cuando se registra la factura en el presupuesto (manual de e-Kuatia\'i o aprobada por SIFEN).')}
   ${pend.length ? `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:4px">Ventas sin factura registrada</h3><p class="small muted" style="margin:0 0 8px">Cobradas o confirmadas sin factura cargada en el sistema. No generan IVA débito ni venta en contabilidad (lo cobrado queda como anticipo de cliente). Si ya emitiste la factura en e-Kuatia'i, registrá el número en el presupuesto.</p>
