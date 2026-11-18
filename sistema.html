@@ -252,7 +252,7 @@ const pct = (x, d=1) => (isFinite(x) ? fmtN(x*100, d) : '—') + '%';
 const pf = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; };
 const uid = () => Math.random().toString(36).slice(2, 10);
 const now = () => new Date().toISOString();
-const fDate = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('es-PY', {day:'2-digit', month:'2-digit', year:'numeric'}); };
+const fDate = iso => { if (!iso) return '—'; const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso); /* fecha sola = día local (si no, en UTC−3 sale el día anterior) */ return d.toLocaleDateString('es-PY', {day:'2-digit', month:'2-digit', year:'numeric'}); };
 const fDT = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('es-PY', {day:'2-digit', month:'short'}) + ' ' + d.toLocaleTimeString('es-PY', {hour:'2-digit', minute:'2-digit'}); };
 const hhmm = () => new Date().toLocaleTimeString('es-PY', {hour:'2-digit', minute:'2-digit'});
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1795,7 +1795,7 @@ const PLAN_BASE = [
   ['6.2.01','Depreciaciones'],['6.3.01','Intereses y gastos financieros'],['6.3.02','Diferencia de cambio perdida'],['6.4.01','Impuesto a la renta'],
 ].map(([codigo, nombre]) => ({codigo, nombre, base:true}));
 const CTA = {caja:'1.1.01', banco:'1.1.02', deudores:'1.1.03', ivaCF:'1.1.04', inventario:'1.1.05', activoFijo:'1.2.01', depAcum:'1.2.02',
-  proveedores:'2.1.01', ivaDF:'2.1.02', anticipos:'2.1.05', difCambioG:'4.1.03', difCambioP:'6.3.02', prestamos:'2.2.01', capital:'3.1.01', resAcum:'3.1.02', retiros:'3.1.03', ventas:'4.1.01', otrosIng:'4.1.02',
+  proveedores:'2.1.01', ivaDF:'2.1.02', impPagar:'2.1.04', anticipos:'2.1.05', difCambioG:'4.1.03', difCambioP:'6.3.02', prestamos:'2.2.01', capital:'3.1.01', resAcum:'3.1.02', retiros:'3.1.03', ventas:'4.1.01', otrosIng:'4.1.02',
   cmv:'5.1.01', difInv:'5.1.03'};
 const esImputable = c => c.split('.').length === 3;
 function planCuentas(){
@@ -1820,10 +1820,10 @@ const fondoCta = f => f ? (f.cuenta || (f.tipo === 'caja' ? CTA.caja : CTA.banco
 function ventasContables(){
   const out = [];
   S.presupuestos.forEach(p => (p.facturasManual || []).filter(f => f.estado === 'emitida').forEach(f =>
-    out.push({id:'fm-' + f.id, fecha:f.fecha, at:f.at || '', presId:p.id, presNum:p.numero, clienteId:p.cliente && p.cliente.clienteId, cliente:(f.receptor && f.receptor.name) || (p.cliente && p.cliente.nombre), numero:f.numero, items:f.items || [], total:+f.total})));
+    out.push({id:'fm-' + f.id, fecha:f.fecha, at:f.at || '', presId:p.id, presNum:p.numero, clienteId:p.cliente && p.cliente.clienteId, cliente:(f.receptor && f.receptor.name) || (p.cliente && p.cliente.nombre), doc:(f.receptor && f.receptor.document_number) || (p.cliente && p.cliente.documento) || '', numero:f.numero, items:f.items || [], total:+f.total})));
   (S.facturas || []).filter(f => ['approved','approved_obs'].includes(f.estado)).forEach(f => {
     const p = S.presupuestos.find(x => x.id === f.presupuesto_id);
-    out.push({id:'fs-' + f.id, fecha:String(f.created_at || '').slice(0,10), at:f.created_at || '', presId:f.presupuesto_id, presNum:p && p.numero, clienteId:p && p.cliente && p.cliente.clienteId, cliente:f.receptor && f.receptor.name, numero:f.numero, items:f.items || [], total:+f.total});
+    out.push({id:'fs-' + f.id, fecha:String(f.created_at || '').slice(0,10), at:f.created_at || '', presId:f.presupuesto_id, presNum:p && p.numero, clienteId:p && p.cliente && p.cliente.clienteId, cliente:f.receptor && f.receptor.name, doc:(f.receptor && f.receptor.document_number) || '', numero:f.numero, items:f.items || [], total:+f.total});
   });
   return out;
 }
@@ -1833,6 +1833,15 @@ function splitVenta(v){ // IVA por tasa, escalado al total facturado
   (v.items.length ? v.items : [{importe:v.total, tasa_iva:10}]).forEach(i => { const r = ivaSplit((+i.importe || 0) * k, +(i.tasa_iva ?? i.tasaIva ?? 10)); neto += r.neto; iva += r.iva; });
   const dif = v.total - neto - iva; neto += dif; // redondeo
   return {neto, iva};
+}
+function desglosarIVA(items, total){ // [{importe, tasa}] → gravado neto e IVA por tasa (mismo cálculo que el libro diario)
+  const L = items.length ? items : [{importe:total, tasa:10}];
+  const suma = L.reduce((s,i) => s + (+i.importe || 0), 0) || total; const k = suma ? total / suma : 1;
+  const r = {g10:0, i10:0, g5:0, i5:0, ex:0, total};
+  L.forEach(i => { const t = +i.tasa || 0; const x = ivaSplit((+i.importe || 0) * k, t);
+    if (t === 10) { r.g10 += x.neto; r.i10 += x.iva; } else if (t === 5) { r.g5 += x.neto; r.i5 += x.iva; } else r.ex += x.neto; });
+  const dif = total - (r.g10 + r.i10 + r.g5 + r.i5 + r.ex); if (dif) { if (r.g10) r.g10 += dif; else if (r.g5) r.g5 += dif; else r.ex += dif; }
+  r.iva = r.i10 + r.i5; r.neto = total - r.iva; return r;
 }
 // --- consumo de materiales al confirmar la venta ---
 function consumos(){
@@ -1849,7 +1858,8 @@ function saldoCompra(c){ // total - pagos efectivamente realizados (compras en U
   const ops = (S.ordenes || []).filter(o => o.destino && o.destino.tipo === 'compra' && o.destino.compraId === c.id && o.estado === 'pagada');
   if (c.moneda === 'USD') { const pu = ops.reduce((s,o) => s + (+o.montoUSD || (+o.monto || 0) / (+c.tc || 1)), 0); const tot = +c.totalOrig || 0;
     const pagado = Math.round(pu * (+c.tc || 0)); return {total:+c.total || 0, pagado, saldo:Math.max(0, (+c.total || 0) - pagado), usd:true, totalUSD:tot, pagadoUSD:pu, saldoUSD:Math.round((tot - pu) * 100) / 100}; }
-  const pagado = ops.reduce((s,o) => s + (+o.monto || 0), 0);
+  const directo = c.pagoId ? (S.movimientos || []).filter(m => m.id === c.pagoId && !m.anulado).reduce((s,m) => s + +m.monto, 0) : 0;
+  const pagado = ops.reduce((s,o) => s + (+o.monto || 0), 0) + directo;
   return {total:+c.total || 0, pagado, saldo:(+c.total || 0) - pagado};
 }
 
@@ -1885,6 +1895,7 @@ function libroDiario(){
           add(e.f, `Aplicación de anticipo a la factura ${e.num || ''} · ${p.numero || ''}`, 'anticipo', e.id, [{cta:CTA.anticipos, debe:ap}, {cta:CTA.deudores, haber:ap}]); } } }); });
   }
   // movimientos de dinero
+  const compraDePago = {}; (S.compras || []).filter(c => !c.anulada && c.pagoId).forEach(c => { compraDePago[c.pagoId] = c; });
   (S.movimientos || []).filter(m => !m.anulado).forEach(m => {
     const f = (S.fondos || []).find(x => x.id === m.fondoId); const cf = fondoCta(f); const monto = +m.monto;
     if (m.tipo === 'ingreso') {
@@ -1896,7 +1907,7 @@ function libroDiario(){
       add(m.fecha, `Transferencia ${f ? f.nombre : ''} → ${fd ? fd.nombre : ''}`, 'transferencia', m.id, [{cta:fondoCta(fd), debe:monto}, {cta:cf, haber:monto}]);
     } else if (m.tipo === 'egreso') {
       const op = (S.ordenes || []).find(o => o.id === m.opId) || {};
-      const debe = op.destino && op.destino.tipo === 'compra' ? CTA.proveedores : ((op.destino && op.destino.cuenta) || '6.1.09');
+      const debe = (op.destino && op.destino.tipo === 'compra') || compraDePago[m.id] ? CTA.proveedores : ((op.destino && op.destino.cuenta) || '6.1.09');
       const cp = op.destino && op.destino.tipo === 'compra' ? (S.compras || []).find(c => c.id === op.destino.compraId) : null;
       if (cp && cp.moneda === 'USD' && +m.montoUSD) { const prov = Math.round(+m.montoUSD * (+cp.tc || 0)), dif = monto - prov;
         add(m.fecha, `Pago ${m.opId || ''} · ${op.beneficiario || ''} — USD ${fmtN(m.montoUSD, 2)} a ${fmtN(m.tc, 2)}`, 'pago', m.id, [{cta:CTA.proveedores, debe:prov}, {cta:CTA.difCambioP, debe:Math.max(dif, 0)}, {cta:cf, haber:monto}, {cta:CTA.difCambioG, haber:Math.max(-dif, 0)}]); }
@@ -2173,10 +2184,10 @@ async function anularMov(id){
    ===================================================================== */
 S.ct = {tab:'resultados', mes: mesDe(hoyISO()), cta:'1.1.02', anio: hoyISO().slice(0,4), crec:3, meses:12};
 function viewContabilidad(){
-  const tabs = [['resultados','Resultados'],['balance','Balance'],['indicadores','Indicadores'],['proyeccion','P&L proyectado'],['diario','Libro diario'],['mayor','Mayor'],['plan','Plan de cuentas']];
+  const tabs = [['resultados','Resultados'],['balance','Balance'],['indicadores','Indicadores'],['proyeccion','P&L proyectado'],['ventas','Libro ventas'],['compras','Libro compras'],['iva','IVA mensual'],['diario','Libro diario'],['mayor','Mayor'],['plan','Plan de cuentas']];
   if (!tabs.some(t => t[0] === S.ct.tab)) S.ct.tab = 'resultados';
-  const fn = {resultados:ctResultados, balance:ctBalance, indicadores:ctIndicadores, proyeccion:ctProyeccion, diario:ctDiario, mayor:ctMayor, plan:ctPlan}[S.ct.tab];
-  return `<div class="top"><div><h1>Contabilidad</h1><p>Asientos generados automáticamente desde facturas, cobros, compras, pagos y stock. Información de gestión: los libros oficiales los lleva el contador. Compras y stock están en <a href="#stock">Stock y compras</a>.</p></div>
+  const fn = {resultados:ctResultados, balance:ctBalance, indicadores:ctIndicadores, proyeccion:ctProyeccion, ventas:ctLibroVentas, compras:ctLibroCompras, iva:ctIVA, diario:ctDiario, mayor:ctMayor, plan:ctPlan}[S.ct.tab];
+  return `<div class="top"><div><h1>Contabilidad</h1><p>Asientos generados automáticamente desde facturas, cobros, compras, pagos y stock. El IVA se ve en Libro ventas, Libro compras e IVA mensual. Información de gestión: los libros oficiales los lleva el contador.</p></div>
     <div class="row"><a class="btn" href="#catalogo" onclick="S.catTab='cierre'">Cierre de mes</a></div></div>
   <div class="seg" style="margin-bottom:16px">${tabs.map(([k,n]) => `<button class="${S.ct.tab===k?'on':''}" onclick="S.ct.tab='${k}';render()">${n}</button>`).join('')}</div>
   ${loadingOr(fn())}`;
@@ -2287,9 +2298,14 @@ function ctCompras(){
   </tbody></table>` : '<div class="empty"><b>Sin compras</b>Registrá las facturas de proveedores: materiales (entran al stock), gastos o activos.</div>'}</div>`;
 }
 let CP = null;
-async function editarCompra(){
+async function editarCompra(pagoId){
   if (!(S.proveedores || []).length && !(await nuevoProveedor())) return;
   CP = {fecha:hoyISO(), proveedorId:(S.proveedores[0] || {}).id, numeroFactura:'', timbrado:'', condicion:'credito', moneda:'PYG', tc:'', items:[{tipo:'material', materialId:'', descripcion:'', cuenta:'', cantidad:1, importe:'', tasaIva:10}], generarOP:true};
+  if (typeof pagoId === 'string') { // factura de un gasto que ya se pagó con orden de pago
+    const m = (S.movimientos || []).find(x => x.id === pagoId); if (!m) return; const op = (S.ordenes || []).find(o => o.id === m.opId) || {};
+    const pv = (S.proveedores || []).find(p => String(p.nombre).trim().toLowerCase() === String(op.beneficiario || '').trim().toLowerCase());
+    Object.assign(CP, {pagoId, montoPago:+m.monto, fecha:m.fecha, proveedorId:pv ? pv.id : CP.proveedorId, condicion:'contado', generarOP:false,
+      items:[{tipo:'gasto', materialId:'', descripcion:op.concepto || m.concepto || 'Gasto', cuenta:(op.destino && op.destino.cuenta) || '6.1.09', cantidad:1, importe:+m.monto, tasaIva:10}]}); }
   dibujarCompra();
 }
 function dibujarCompra(){
@@ -2299,13 +2315,15 @@ function dibujarCompra(){
   const {tot, iva} = totCompra();
   const usd = CP.moneda === 'USD';
   const w = document.createElement('div'); w.className = 'dlg-ov cp-ov';
-  w.innerHTML = `<div class="dlg" style="max-width:820px;max-height:92vh;overflow:auto"><h3>Registrar compra</h3>
+  w.innerHTML = `<div class="dlg" style="max-width:820px;max-height:92vh;overflow:auto"><h3>${CP.pagoId ? 'Cargar factura de un pago ya hecho' : 'Registrar compra'}</h3>
+    ${CP.pagoId ? `<div class="note" style="margin-top:8px;font-size:13px">${IC.warn}<div>El pago de <b>${gs(CP.montoPago)}</b> ya salió de caja como gasto sin IVA. Al cargar la factura, ese pago queda aplicado a esta compra: el gasto se registra sin IVA y el IVA pasa a crédito fiscal (no se duplica). El total tiene que ser igual al pago.</div></div>` : ''}
     <div class="grid4" style="margin-top:10px">
       <label class="f">Proveedor<select class="in" data-cp="proveedorId">${(S.proveedores || []).map(p => `<option value="${p.id}" ${CP.proveedorId===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select><a href="#" class="small" onclick="nuevoProveedor().then(()=>{CP.proveedorId=(S.proveedores[S.proveedores.length-1]||{}).id;dibujarCompra()});return false">+ nuevo proveedor</a></label>
       <label class="f">N° factura<input class="in" data-cp="numeroFactura" value="${esc(CP.numeroFactura)}" placeholder="001-001-0000123"></label>
       <label class="f">Fecha<input class="in" type="date" data-cp="fecha" value="${esc(CP.fecha)}"></label>
       <label class="f">Condición<select class="in" data-cp="condicion"><option value="credito" ${CP.condicion==='credito'?'selected':''}>Crédito</option><option value="contado" ${CP.condicion==='contado'?'selected':''}>Contado</option></select></label></div>
-    <div class="grid4" style="margin-top:10px"><label class="f">Moneda de la factura<select class="in" data-cp="moneda"><option value="PYG" ${!usd?'selected':''}>Guaraníes</option><option value="USD" ${usd?'selected':''}>Dólares (USD)</option></select></label>
+    <div class="grid4" style="margin-top:10px"><label class="f">Timbrado<input class="in" data-cp="timbrado" value="${esc(CP.timbrado || '')}" placeholder="8 dígitos"></label>
+      ${CP.pagoId ? '' : `<label class="f">Moneda de la factura<select class="in" data-cp="moneda"><option value="PYG" ${!usd?'selected':''}>Guaraníes</option><option value="USD" ${usd?'selected':''}>Dólares (USD)</option></select></label>`}
       ${usd ? `<label class="f">Tipo de cambio ₲ por USD *<span class="h">El del día de la factura</span><input class="in r" type="number" step="0.01" data-cp="tc" value="${esc(CP.tc)}"></label><div class="small muted" style="grid-column:span 2;align-self:end">Los importes se cargan en USD y se registran en guaraníes con este tipo de cambio. Al pagar se carga el tipo de cambio del día y la diferencia de cambio se contabiliza sola.</div>` : ''}</div>
     <table class="lines ft" style="margin-top:12px"><thead><tr><th style="width:110px">Tipo</th><th>Material / descripción</th><th style="width:170px">Cuenta</th><th class="r" style="width:80px">Cant.</th><th class="r" style="width:120px">Importe ${usd ? 'USD' : '₲'} (c/IVA)</th><th style="width:80px">IVA</th><th style="width:26px"></th></tr></thead><tbody>
     ${CP.items.map((i, k) => `<tr><td><select class="in" data-cp="items.${k}.tipo"><option value="material" ${i.tipo==='material'?'selected':''}>Material</option><option value="gasto" ${i.tipo==='gasto'?'selected':''}>Gasto</option><option value="activo" ${i.tipo==='activo'?'selected':''}>Activo fijo</option></select></td>
@@ -2316,7 +2334,7 @@ function dibujarCompra(){
       <td><select class="in" data-cp="items.${k}.tasaIva">${[[10,'10%'],[5,'5%'],[0,'Exento']].map(([v,n]) => `<option value="${v}" ${+i.tasaIva===v?'selected':''}>${n}</option>`).join('')}</select></td>
       <td><button class="x" onclick="CP.items.splice(${k},1);dibujarCompra()">×</button></td></tr>`).join('')}</tbody></table>
     <button class="btn sm ghost" onclick="CP.items.push({tipo:'gasto',materialId:'',descripcion:'',cuenta:'6.1.09',cantidad:1,importe:'',tasaIva:10});dibujarCompra()">+ Renglón</button>
-    <div class="row" style="justify-content:space-between;margin-top:8px"><label class="row small"><input type="checkbox" data-cp="generarOP" ${CP.generarOP?'checked':''}> Crear orden de pago por el total (va a aprobación)</label>
+    <div class="row" style="justify-content:space-between;margin-top:8px">${CP.pagoId ? '<span></span>' : `<label class="row small"><input type="checkbox" data-cp="generarOP" ${CP.generarOP?'checked':''}> Crear orden de pago por el total (va a aprobación)</label>`}
       <span>IVA crédito: <b class="num" id="cpIva">${gs(iva)}</b> · Total: <b class="num" style="font-size:18px" id="cpTot">${gs(tot)}</b></span></div>
     ${usd ? '<div class="small muted r">Totales expresados en guaraníes.</div>' : ''}
     <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.querySelector('.cp-ov').remove()">Cancelar</button><button class="btn pri" onclick="guardarCompra()">Registrar compra</button></div></div>`;
@@ -2340,11 +2358,13 @@ async function guardarCompra(){
   const mal = items.find(i => (i.tipo === 'material' && !i.materialId) || (i.tipo !== 'material' && !String(i.descripcion || '').trim()) || !(+i.cantidad > 0));
   if (mal) { toast('Cada renglón necesita material o descripción y cantidad'); return; }
   const total = items.reduce((s,i) => s + aGs(i.importe), 0);
+  if (CP.pagoId && total !== CP.montoPago) { toast(`El total (${gs(total)}) tiene que ser igual al pago (${gs(CP.montoPago)})`); return; }
+  if (CP.pagoId && (S.compras || []).some(c => !c.anulada && c.pagoId === CP.pagoId)) { toast('Ese pago ya tiene una factura cargada'); return; }
   const id = 'cp-' + uid();
-  const doc = {fecha:CP.fecha, proveedorId:CP.proveedorId, numeroFactura:CP.numeroFactura.trim(), condicion:CP.condicion, items:items.map(i => ({tipo:i.tipo, materialId:i.tipo === 'material' ? i.materialId : null, descripcion:i.tipo === 'material' ? ((matById(i.materialId) || {}).nombre || '') : i.descripcion.trim(), cuenta:i.tipo === 'material' ? CTA.inventario : i.cuenta, cantidad:+i.cantidad, importe:aGs(i.importe), ...(CP.moneda === 'USD' ? {importeOrig:+i.importe} : {}), tasaIva:+i.tasaIva})), total, ...(CP.moneda === 'USD' ? {moneda:'USD', tc:+CP.tc, totalOrig:items.reduce((s,i) => s + +i.importe, 0)} : {}), por:S.me, at:now()};
+  const doc = {fecha:CP.fecha, proveedorId:CP.proveedorId, numeroFactura:CP.numeroFactura.trim(), timbrado:String(CP.timbrado || '').trim(), ...(CP.pagoId ? {pagoId:CP.pagoId} : {}), condicion:CP.condicion, items:items.map(i => ({tipo:i.tipo, materialId:i.tipo === 'material' ? i.materialId : null, descripcion:i.tipo === 'material' ? ((matById(i.materialId) || {}).nombre || '') : i.descripcion.trim(), cuenta:i.tipo === 'material' ? CTA.inventario : i.cuenta, cantidad:+i.cantidad, importe:aGs(i.importe), ...(CP.moneda === 'USD' ? {importeOrig:+i.importe} : {}), tasaIva:+i.tasaIva})), total, ...(CP.moneda === 'USD' ? {moneda:'USD', tc:+CP.tc, totalOrig:items.reduce((s,i) => s + +i.importe, 0)} : {}), por:S.me, at:now()};
   try { await put('compras', id, doc); } catch(e) { return; }
   document.querySelector('.cp-ov')?.remove();
-  if (CP.generarOP) { const op = await siguienteOP(); await put('ordenes', op, {destino:{tipo:'compra', compraId:id}, monto:total, ...(doc.moneda === 'USD' ? {moneda:'USD', montoUSD:Math.round(doc.totalOrig * 100) / 100, tcEstimado:doc.tc} : {}), beneficiario:provNombre(CP.proveedorId), concepto:`Factura ${doc.numeroFactura || 's/n'}`, fondoSugerido:'', estado:'pendiente', fecha:hoyISO(), creadoPor:S.me, at:now()}); toast(`Compra registrada y ${op} enviada a aprobación`); }
+  if (CP.generarOP && !CP.pagoId) { const op = await siguienteOP(); await put('ordenes', op, {destino:{tipo:'compra', compraId:id}, monto:total, ...(doc.moneda === 'USD' ? {moneda:'USD', montoUSD:Math.round(doc.totalOrig * 100) / 100, tcEstimado:doc.tc} : {}), beneficiario:provNombre(CP.proveedorId), concepto:`Factura ${doc.numeroFactura || 's/n'}`, fondoSugerido:'', estado:'pendiente', fecha:hoyISO(), creadoPor:S.me, at:now()}); toast(`Compra registrada y ${op} enviada a aprobación`); }
   else toast('Compra registrada');
   CP = null;
 }
@@ -2424,6 +2444,87 @@ function ctMayor(){
     <span>Saldo: <b class="num">${gs(acreedora ? -saldo : saldo)}</b> <span class="small muted">${acreedora ? '(acreedor)' : '(deudor)'}</span></span></div>
   <div class="card">${L.length ? `<table class="t" style="font-size:13.5px"><thead><tr><th>Fecha</th><th>Detalle</th><th class="r">Debe</th><th class="r">Haber</th><th class="r">Saldo</th></tr></thead><tbody>
     ${L.map(x => `<tr><td class="small">${fDate(x.a.fecha)}</td><td>${esc(x.a.glosa)}</td><td class="r num">${x.l.debe ? fmtN(x.l.debe) : ''}</td><td class="r num">${x.l.haber ? fmtN(x.l.haber) : ''}</td><td class="r num">${fmtN(acreedora ? -x.saldo : x.saldo)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sin movimientos en esta cuenta.</div>'}</div>`;
+}
+/* ---------- libros de IVA (ventas y compras) y liquidación mensual ---------- */
+function filasLibroVentas(mes){
+  return ventasContables().filter(v => !mes || mesDe(v.fecha) === mes)
+    .map(v => ({...v, d:desglosarIVA(v.items.map(i => ({importe:i.importe, tasa:i.tasa_iva ?? i.tasaIva ?? 10})), v.total)}))
+    .sort((a,b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.numero || '').localeCompare(String(b.numero || '')));
+}
+function filasLibroCompras(mes){
+  return (S.compras || []).filter(c => !c.anulada && (!mes || mesDe(c.fecha) === mes)).map(c => { const pv = (S.proveedores || []).find(p => p.id === c.proveedorId) || {};
+    return {c, fecha:c.fecha, prov:pv.nombre || '—', ruc:pv.ruc || '', d:desglosarIVA((c.items || []).map(i => ({importe:i.importe, tasa:+i.tasaIva || 0})), +c.total || 0)}; })
+    .sort((a,b) => String(a.fecha).localeCompare(String(b.fecha)));
+}
+const sumaD = (F, k) => F.reduce((s,x) => s + (x.d[k] || 0), 0);
+function selMesCt(){ const ms = mesesConDatos(libroDiario()); if (!ms.includes(S.ct.mes)) S.ct.mes = ms[ms.length - 1];
+  return `<select class="in" style="width:auto" onchange="S.ct.mes=this.value;render()">${ms.slice().reverse().map(m => `<option value="${m}" ${S.ct.mes===m?'selected':''}>${nombreMes(m)}</option>`).join('')}</select>`; }
+function tablaLibroIVA(F, celdas, vacio){
+  const n = v => v ? fmtN(v) : '–';
+  return `<div class="card" style="overflow-x:auto">${F.length ? `<table class="t" style="font-size:13px;min-width:860px"><thead><tr><th>Fecha</th><th>Comprobante</th><th>Cliente / proveedor</th><th class="r">Gravado 10%</th><th class="r">IVA 10%</th><th class="r">Gravado 5%</th><th class="r">IVA 5%</th><th class="r">Exento</th><th class="r">Total</th></tr></thead><tbody>
+    ${F.map(x => `<tr><td class="small">${fDate(x.fecha)}</td>${celdas(x)}<td class="r num">${n(x.d.g10)}</td><td class="r num">${n(x.d.i10)}</td><td class="r num">${n(x.d.g5)}</td><td class="r num">${n(x.d.i5)}</td><td class="r num">${n(x.d.ex)}</td><td class="r num"><b>${fmtN(x.d.total)}</b></td></tr>`).join('')}
+    <tr style="font-weight:700;border-top:2px solid var(--ink)"><td colspan="3">Total (${F.length} comprobante${F.length > 1 ? 's' : ''})</td>${['g10','i10','g5','i5','ex','total'].map(k => `<td class="r num">${fmtN(sumaD(F, k))}</td>`).join('')}</tr></tbody></table>` : `<div class="empty">${vacio}</div>`}</div>`;
+}
+function ctLibroVentas(){
+  const sel = selMesCt(); const F = filasLibroVentas(S.ct.mes);
+  const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {}; return {...r, falta:Math.max(r.cobrado, p.estado === 'venta' ? r.venta : 0) - r.facturado}; }).filter(r => r.falta > 0);
+  return `<div class="row" style="margin-bottom:12px">${sel}<span class="small">IVA débito del mes: <b class="num">${gs(sumaD(F, 'iva'))}</b></span></div>
+  ${tablaLibroIVA(F, x => `<td><b>${esc(x.numero || 's/n')}</b><div class="small muted">${esc(x.presNum || '')}</div></td><td>${esc(x.cliente || '—')}<div class="small muted">${x.doc ? 'RUC/CI ' + esc(x.doc) : ''}</div></td>`, '<b>Sin facturas en el mes</b>Las ventas entran acá cuando se registra la factura en el presupuesto (manual de e-Kuatia\'i o aprobada por SIFEN).')}
+  ${pend.length ? `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:4px">Ventas sin factura registrada</h3><p class="small muted" style="margin:0 0 8px">Cobradas o confirmadas sin factura cargada en el sistema. No generan IVA débito ni venta en contabilidad (lo cobrado queda como anticipo de cliente). Si ya emitiste la factura en e-Kuatia'i, registrá el número en el presupuesto.</p>
+    <table class="t" style="font-size:13px"><thead><tr><th>Presupuesto</th><th>Cliente</th><th class="r">Cobrado</th><th class="r">Facturado</th><th class="r">Sin facturar</th></tr></thead><tbody>${pend.map(r => `<tr><td><a href="#" onclick="openDetail('${esc(r.id)}');return false">${esc(r.numero)}</a></td><td>${esc(r.cliente)}</td><td class="r num">${gs(r.cobrado)}</td><td class="r num">${gs(r.facturado)}</td><td class="r num"><b>${gs(r.falta)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
+  <p class="small muted">Libro de gestión: los importes salen de las facturas registradas en el sistema. El registro oficial de comprobantes (RG 90/2021 en Marangatu) y el Formulario 120 los hace el contador.</p>`;
+}
+function ctLibroCompras(){
+  const sel = selMesCt(); const F = filasLibroCompras(S.ct.mes);
+  const conFact = new Set((S.compras || []).filter(c => !c.anulada && c.pagoId).map(c => c.pagoId));
+  const sinFac = (S.movimientos || []).filter(m => !m.anulado && m.tipo === 'egreso' && mesDe(m.fecha) === S.ct.mes && !conFact.has(m.id)).map(m => ({m, op:(S.ordenes || []).find(o => o.id === m.opId) || {}}))
+    .filter(({op}) => { if (op.destino && op.destino.tipo === 'compra') return false; const c = (op.destino && op.destino.cuenta) || '6.1.09'; return /^(5\.|6\.1\.|6\.3\.)/.test(c) && c !== '6.1.01'; });
+  return `<div class="row" style="margin-bottom:12px">${sel}<span class="small">IVA crédito del mes: <b class="num">${gs(sumaD(F, 'iva'))}</b></span><span class="grow"></span><button class="btn pri sm" onclick="editarCompra()">+ Factura de compra / gasto</button></div>
+  ${tablaLibroIVA(F, x => `<td><b>${esc(x.c.numeroFactura || 's/n')}</b><div class="small muted">${x.c.timbrado ? 'Timbrado ' + esc(x.c.timbrado) : '<span style="color:var(--bad)">Sin timbrado</span>'}${x.c.condicion === 'credito' ? ' · Crédito' : ' · Contado'}</div></td><td>${esc(x.prov)}<div class="small muted">${x.ruc ? 'RUC ' + esc(x.ruc) : '<span style="color:var(--bad)">Sin RUC</span>'}</div></td>`, '<b>Sin facturas de compra en el mes</b>Cargá acá (o en Stock y compras) las facturas de materiales, gastos y activos: así se descuenta el IVA crédito.')}
+  ${sinFac.length ? `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:4px">Pagos de gastos sin factura cargada</h3><p class="small muted" style="margin:0 0 8px">Se pagaron con orden de pago directo a un gasto: el importe completo quedó como gasto y <b>no se descontó IVA crédito</b>. Si tienen factura con IVA, cargala acá (el pago queda aplicado a la factura, sin duplicar el gasto).</p>
+    <table class="t" style="font-size:13px"><thead><tr><th>Fecha</th><th>Pago</th><th class="hide-m">Cuenta</th><th class="r">Monto</th><th></th></tr></thead><tbody>${sinFac.map(({m, op}) => `<tr><td class="small">${fDate(m.fecha)}</td><td>${esc(op.beneficiario || '—')}<div class="small muted">${esc(m.opId || '')} · ${esc(op.concepto || m.concepto || '')}</div></td><td class="hide-m small">${esc(nombreCta((op.destino && op.destino.cuenta) || '6.1.09'))}</td><td class="r num">${gs(m.monto)}</td>
+      <td class="r">${m.montoUSD ? '<span class="small muted">En USD: asiento manual</span>' : `<button class="btn sm" onclick="editarCompra('${esc(m.id)}')">Cargar factura</button>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
+  <p class="small muted">Sueldos, retiros, préstamos e impuestos no llevan IVA y no se listan arriba. El registro oficial de comprobantes (RG 90/2021 en Marangatu) lo hace el contador.</p>`;
+}
+function ctIVA(){
+  const sel = selMesCt(); const A = libroDiario(); const y = S.ct.mes.slice(0,4);
+  const liqs = (S.asientos || []).filter(a => !a.anulado && a.tipo === 'liqiva');
+  const ms = mesesConDatos(A).filter(m => m.startsWith(y));
+  const filas = ms.map(m => { const v = filasLibroVentas(m), c = filasLibroCompras(m); const L = liqs.filter(a => a.mes === m);
+    return {m, df:sumaD(v, 'iva'), cf:sumaD(c, 'iva'), liq:L.length, pagar:L.reduce((s,a) => s + (a.lineas || []).filter(l => l.cta === CTA.impPagar).reduce((t,l) => t + (+l.haber || 0), 0), 0)}; });
+  const s = saldos(A, null, finMes(S.ct.mes)); const df = -(s[CTA.ivaDF] || 0), cf = s[CTA.ivaCF] || 0;
+  const usa = Math.max(0, Math.min(df, cf)), pagar = Math.max(0, df - usa), aFavor = Math.max(0, cf - usa);
+  const yaLiq = liqs.some(a => a.mes === S.ct.mes);
+  const impP = -(s[CTA.impPagar] || 0);
+  return `<div class="row" style="margin-bottom:12px">${sel}<span class="small muted">Liquidación de gestión del IVA (débito − crédito).</span></div>
+  <div class="kpis">
+    <div class="card kpi"><div class="l">IVA débito pendiente</div><div class="v num">${gs(Math.max(0, df))}</div><div class="s">Cuenta 2.1.02 al cierre de ${nombreMes(S.ct.mes)}</div></div>
+    <div class="card kpi"><div class="l">IVA crédito disponible</div><div class="v num">${gs(Math.max(0, cf))}</div><div class="s">Cuenta 1.1.04 (incluye saldo a favor anterior)</div></div>
+    ${pagar ? `<div class="card kpi"><div class="l">A pagar (aprox.)</div><div class="v num" style="color:var(--bad)">${gs(pagar)}</div><div class="s">Débito − crédito, sin liquidar</div></div>`
+      : impP > 0 ? `<div class="card kpi"><div class="l">Liquidado, sin pagar</div><div class="v num" style="color:var(--bad)">${gs(impP)}</div><div class="s">Cuenta 2.1.04 · baja al pagar con orden de pago</div></div>`
+      : `<div class="card kpi"><div class="l">Saldo a favor (aprox.)</div><div class="v num" style="color:var(--ok)">${gs(aFavor)}</div><div class="s">Se arrastra al mes siguiente</div></div>`}
+  </div>
+  <div class="card pad" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><div><b>Liquidación de ${nombreMes(S.ct.mes)}</b><div class="small muted">${yaLiq ? (df > 0 ? `Ya liquidado, pero se cargaron comprobantes después: quedan ${gs(df)} de débito sin liquidar.` : 'Liquidado.') : df > 0 ? 'Registra el asiento que cancela débito contra crédito y deja el saldo en 2.1.04 Impuestos a pagar.' : 'No hay IVA débito para liquidar: el crédito queda como saldo a favor.'}</div></div>
+    ${S.canAdmin && df > 0 ? `<button class="btn pri sm" onclick="liquidarIVA('${S.ct.mes}')">${yaLiq ? 'Liquidación complementaria' : 'Registrar liquidación'}</button>` : ''}</div>
+    ${pagar || impP > 0 ? `<p class="small muted" style="margin:8px 0 0">Para pagarlo: Caja → Órdenes de pago → "Un gasto u otro pago" → cuenta <b>2.1.04 Impuestos a pagar</b>.</p>` : ''}</div>
+  <div class="card" style="overflow-x:auto"><table class="t" style="font-size:13.5px"><thead><tr><th>Mes ${y}</th><th class="r">IVA débito (ventas)</th><th class="r">IVA crédito (compras)</th><th class="r">Diferencia</th><th>Estado</th></tr></thead><tbody>
+    ${filas.map(f => `<tr ${f.m === S.ct.mes ? 'style="background:#faf9f7"' : ''}><td><a href="#" onclick="S.ct.mes='${f.m}';render();return false">${nombreMes(f.m)}</a></td><td class="r num">${fmtN(f.df)}</td><td class="r num">${fmtN(f.cf)}</td><td class="r num"><b>${f.df - f.cf < 0 ? '(' + fmtN(f.cf - f.df) + ')' : fmtN(f.df - f.cf)}</b></td>
+      <td class="small">${f.liq ? `<span style="color:var(--ok)">Liquidado</span>${f.pagar ? ' · a pagar ' + gs(f.pagar) : ''}` : '<span class="muted">Sin liquidar</span>'}</td></tr>`).join('')}
+    <tr style="font-weight:700;border-top:2px solid var(--ink)"><td>Total</td><td class="r num">${fmtN(filas.reduce((s,f) => s + f.df, 0))}</td><td class="r num">${fmtN(filas.reduce((s,f) => s + f.cf, 0))}</td><td class="r num">${fmtN(filas.reduce((s,f) => s + f.df - f.cf, 0))}</td><td></td></tr></tbody></table></div>
+  <p class="small muted">Diferencia entre paréntesis = crédito mayor que débito. Es un cálculo de gestión: no incluye retenciones de IVA, ajustes ni prorrateos. El monto a declarar y pagar (Formulario 120, vencimiento según el calendario de la DNIT) lo confirma el contador.</p>`;
+}
+async function liquidarIVA(mes){
+  const s = saldos(libroDiario(), null, finMes(mes)); const df = -(s[CTA.ivaDF] || 0), cf = Math.max(0, s[CTA.ivaCF] || 0);
+  if (!(df > 0)) { toast('No hay IVA débito pendiente en ese mes'); return; }
+  const usa = Math.min(df, cf), pagar = df - usa;
+  const ok = await dialog('Liquidación de IVA · ' + nombreMes(mes), `<p class="small" style="margin-top:0">Se registra este asiento al ${fDate(finMes(mes))}:</p>
+    <table class="t" style="font-size:13.5px"><tbody><tr><td>2.1.02 IVA débito fiscal</td><td class="r num">${fmtN(df)}</td><td></td></tr>
+    ${usa ? `<tr><td style="padding-left:34px">1.1.04 IVA crédito fiscal</td><td></td><td class="r num">${fmtN(usa)}</td></tr>` : ''}
+    ${pagar ? `<tr><td style="padding-left:34px">2.1.04 Impuestos a pagar</td><td></td><td class="r num">${fmtN(pagar)}</td></tr>` : ''}</tbody></table>
+    <p class="small muted">Antes, conviene confirmar el monto con el contador. Si después se cargan comprobantes de este mes, aparece la opción de liquidación complementaria.</p>`, 'Registrar');
+  if (!ok) return;
+  try { await put('asientos', 'as-' + uid(), {fecha:finMes(mes), glosa:`Liquidación de IVA ${nombreMes(mes)}`, tipo:'liqiva', mes, lineas:[{cta:CTA.ivaDF, debe:df, haber:0}, {cta:CTA.ivaCF, debe:0, haber:usa}, {cta:CTA.impPagar, debe:0, haber:pagar}].filter(l => l.debe || l.haber), por:S.me, at:now()}); } catch(e) { return; }
+  toast(pagar ? `Liquidación registrada: ${gs(pagar)} a pagar` : 'Liquidación registrada');
 }
 function ctPlan(){
   const P = planCuentas();
@@ -3619,11 +3720,14 @@ async function respaldoExcel(){
   hoja('Ordenes de pago', (S.ordenes || []).map(o => ({OP:o.id, Fecha:o.fecha, Beneficiario:o.beneficiario, Concepto:o.concepto, Monto:+o.monto, Estado:o.estado})));
   hoja('Ordenes de trabajo', (S.ots || []).map(o => ({OT:o.id, Presupuesto:o.presNum || 'stock', Cliente:o.cliente, Producto:`${o.codigo || ''} ${o.descripcion || ''}`.trim(), Cantidad:o.cantidad, Estado:(OTE[o.estado] || {}).n || o.estado, Prometida:o.fechaPrometida, Entregada:o.fechaEntrega || '', CostoReal:o.cierre ? Math.round(o.cierre.total) : '', MargenReal:o.cierre ? o.cierre.margenReal : ''})));
   const {st} = motorStock(); hoja('Stock', Object.entries(st).map(([k, v]) => ({Item:itemInfo(k).nombre, Unidad:itemInfo(k).unidad, Cantidad:Math.round(v.cant * 100) / 100, CostoPromedio:Math.round(v.avg), Valor:Math.round(v.valor)})));
+  const iv = d => ({Gravado10:d.g10, IVA10:d.i10, Gravado5:d.g5, IVA5:d.i5, Exento:d.ex, Total:d.total});
+  hoja('Libro ventas', filasLibroVentas(null).map(x => ({Fecha:x.fecha, Factura:x.numero || '', Cliente:x.cliente || '', RUC_CI:x.doc || '', Presupuesto:x.presNum || '', ...iv(x.d)})));
+  hoja('Libro compras', filasLibroCompras(null).map(x => ({Fecha:x.fecha, Factura:x.c.numeroFactura || '', Timbrado:x.c.timbrado || '', Proveedor:x.prov, RUC:x.ruc, Condicion:x.c.condicion || '', ...iv(x.d)})));
   const A = libroDiario(); hoja('Libro diario', A.flatMap(a => a.lineas.map(l => ({N:a.n, Fecha:a.fecha, Glosa:a.glosa, Cuenta:l.cta, NombreCuenta:nombreCta(l.cta), Debe:l.debe, Haber:l.haber}))));
   X.writeFile(wb, `respaldo_LFL_${hoyISO()}.xlsx`); toast('Excel descargado');
 }
 function respaldoHTML(){
-  return `<div class="card pad" style="margin-top:16px"><h2>Respaldo de datos</h2><p class="small muted" style="margin:4px 0 12px">Descargá una copia de todo. El <b>JSON</b> es la copia completa (sirve para restaurar). El <b>Excel</b> tiene presupuestos, clientes, caja, compras, órdenes, stock y el libro diario para el contador. Recomendado: una vez por semana y siempre antes de cerrar un mes. Guardalo fuera de la computadora (Drive).</p>
+  return `<div class="card pad" style="margin-top:16px"><h2>Respaldo de datos</h2><p class="small muted" style="margin:4px 0 12px">Descargá una copia de todo. El <b>JSON</b> es la copia completa (sirve para restaurar). El <b>Excel</b> tiene presupuestos, clientes, caja, compras, órdenes, stock, libros de IVA ventas y compras y el libro diario para el contador. Recomendado: una vez por semana y siempre antes de cerrar un mes. Guardalo fuera de la computadora (Drive).</p>
     <div class="row"><button class="btn" onclick="respaldoExcel()">⬇ Excel para el contador</button><button class="btn pri" onclick="respaldoJSON()">⬇ Respaldo completo (JSON)</button></div></div>`;
 }
 
