@@ -747,8 +747,9 @@ function renderSummary(){
     <div class="ln" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px;font-weight:700"><span>Costo total</span><span>${gs(c.costo)}</span></div>
     <div class="ln"><span>Precio con margen ${fmtN(d.margen||0,1)}%</span><span>${gs(c.precioRed)}</span></div>
     ${c.dto ? `<div class="ln"><span>Descuento ${fmtN(d.descuento,1)}%</span><span>− ${gs(c.dto)}</span></div>` : ''}
-    <div class="tot"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>
-    <div class="ln small muted"><span>${(+Pp.ivaPct) ? `+ IVA ${fmtN(Pp.ivaPct,1)}%: ${gs(c.iva)}` : 'Impuestos: sin configurar'}</span><span>Margen final: <b style="color:${bajoMin?'var(--bad)':'var(--ink)'}">${pct(c.margenFinal)}</b></span></div>
+    ${(+Pp.ivaPct) ? `<div class="tot"><span>Total a cobrar <small>IVA incluido</small></span><span class="num">${gs(c.precio + c.iva)}</span></div>
+    <div class="ln small muted"><span>Precio sin IVA ${gs(c.precio)} + IVA ${fmtN(Pp.ivaPct,1)}% ${gs(c.iva)}</span></div>` : `<div class="tot"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>`}
+    <div class="ln small muted"><span>${(+Pp.ivaPct) ? 'Este es el monto que se le pasa al cliente' : 'Impuestos: sin configurar'}</span><span>Margen final: <b style="color:${bajoMin?'var(--bad)':'var(--ink)'}">${pct(c.margenFinal)}</b></span></div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
       ${bajoMin ? `<div class="note bad">${IC.warn}<div>Margen por debajo del mínimo (${esc(Pp.margenMinimo)}%). Es una excepción que debe autorizar un socio.</div></div>` : ''}
       ${dtoAlto ? `<div class="note warn">${IC.warn}<div>Descuento mayor al máximo (${esc(Pp.descuentoMax)}%). Requiere autorización.</div></div>` : ''}
@@ -887,7 +888,9 @@ function renderLayer(){
           <div class="row" style="justify-content:space-between"><span class="muted">Adicionales</span><span class="num">${gs(c.adic)}</span></div>
           <div class="row" style="justify-content:space-between"><b>Costo total</b><b class="num">${gs(c.costo)}</b></div>
           <div class="row" style="justify-content:space-between"><span class="muted">Margen ${fmtN(ver.margen,1)}%${ver.descuento ? ` · Dto. ${fmtN(ver.descuento,1)}%` : ''}</span><span class="num">Final ${pct(c.margenFinal)}</span></div>
-          <div class="row" style="justify-content:space-between;font-family:var(--fh);font-size:24px;font-weight:700"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>
+          ${+(ver.params && ver.params.ivaPct) ? `<div class="row" style="justify-content:space-between;grid-column:1/-1;border-top:1px solid var(--line);padding-top:8px"><span class="muted">Precio sin IVA + IVA ${fmtN(ver.params.ivaPct,1)}%</span><span class="num">${gs(c.precio)} + ${gs(c.iva)}</span></div>
+          <div class="row" style="justify-content:space-between;grid-column:1/-1;font-family:var(--fh);font-size:24px;font-weight:700"><span>Total a cobrar <span class="small muted" style="font-family:var(--fb);font-weight:600">IVA incl.</span></span><span class="num">${gs(c.precio + c.iva)}</span></div>`
+          : `<div class="row" style="justify-content:space-between;font-family:var(--fh);font-size:24px;font-weight:700"><span>Precio</span><span class="num">${gs(c.precio)}</span></div>`}
         </div>` : `<div class="note warn" style="margin-top:12px">${IC.warn}<div>Sin cálculo completo todavía.</div></div>`}
         ${ver.notas ? `<p class="small" style="margin:12px 0 0"><b>Notas:</b> ${esc(ver.notas)}</p>` : ''}
       </div>` : ''}
@@ -1265,7 +1268,7 @@ function resumen(){
   const geo = c.items.some(i => i.geo);
   const row = (a, b, bold) => `<div${bold ? ' style="font-weight:700"' : ''}><span>${a}</span><span>${b}</span></div>`;
   bot('', `<b>Presupuesto para ${esc(c.cliente.nombre)}</b>\n${c.items.map(i => `• ${i.cantidad} × ${esc(i.codigo === 'A medida' ? 'A medida ' + i.medidas : i.codigo + ' – ' + i.nombre)}`).join('\n')}${c.adicionales.map(a => `\n• ${esc(a.concepto)}`).join('')}
-<div class="calc" style="margin-top:6px;border-top:1px solid #e3e3e3;padding-top:6px">${row('Materiales', gs(k.mat))}${row('Mano de obra', gs(k.mo))}${row('Desperdicio', gs(k.desp))}${row('Gastos fábrica', gs(k.gastos))}${row('Adicionales', gs(k.adic))}${row('Costo total', gs(k.costo), 1)}${row('Margen ' + fmtN(c.margen,1) + '%', '')}<div style="font-size:17px;font-weight:700;margin-top:4px"><span>Precio</span><span>${gs(k.precio)}</span></div></div>${k.margenFinal*100 < +Pp.margenMinimo ? '\n⚠️ Margen bajo el mínimo: requiere autorización.' : ''}${geo ? '\n⚠️ Materiales a medida estimados por geometría: revisar.' : ''}${Pp.ejemplo ? '\n⚠️ Costos de EJEMPLO, no reales.' : ''}`);
+<div class="calc" style="margin-top:6px;border-top:1px solid #e3e3e3;padding-top:6px">${row('Materiales', gs(k.mat))}${row('Mano de obra', gs(k.mo))}${row('Desperdicio', gs(k.desp))}${row('Gastos fábrica', gs(k.gastos))}${row('Adicionales', gs(k.adic))}${row('Costo total', gs(k.costo), 1)}${row('Margen ' + fmtN(c.margen,1) + '%', '')}${(+Pp.ivaPct) ? `${row('Precio sin IVA', gs(k.precio))}${row('IVA ' + fmtN(Pp.ivaPct,1) + '%', gs(k.iva))}<div style="font-size:17px;font-weight:700;margin-top:4px"><span>Total a cobrar (IVA incl.)</span><span>${gs(k.precio + k.iva)}</span></div>` : `<div style="font-size:17px;font-weight:700;margin-top:4px"><span>Precio</span><span>${gs(k.precio)}</span></div>`}</div>${k.margenFinal*100 < +Pp.margenMinimo ? '\n⚠️ Margen bajo el mínimo: requiere autorización.' : ''}${geo ? '\n⚠️ Materiales a medida estimados por geometría: revisar.' : ''}${Pp.ejemplo ? '\n⚠️ Costos de EJEMPLO, no reales.' : ''}`);
   CH.step = 'confirmar';
   chips([{l:'Crear presupuesto', v:'crear'}, {l:'Revisar en calculadora', v:'editar'}, {l:'Cancelar', v:'cancelar'}]);
   drawChat();
@@ -2467,7 +2470,9 @@ function tablaLibroIVA(F, celdas, vacio){
 }
 function ctLibroVentas(){
   const sel = selMesCt(); const F = filasLibroVentas(S.ct.mes);
-  const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {}; return {...r, falta:Math.max(r.cobrado, p.estado === 'venta' ? r.venta : 0) - r.facturado}; }).filter(r => r.falta > 0);
+  const totalCI = p => { const v = (p.versiones || [])[(p.versiones || []).length - 1]; if (!v || !v.calc) return +p.precioFinal || 0; const t = +(v.params && v.params.ivaPct) || 0; return Math.round((+v.calc.precio || 0) + (t ? (+v.calc.iva || 0) : 0)); }; // precio del presupuesto es sin IVA
+  const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {};
+    return {...r, falta: r.facturado ? r.cobrado - r.facturado : Math.max(r.cobrado, p.estado === 'venta' ? totalCI(p) : 0)}; }).filter(r => r.falta > 0); // con factura: solo si se cobró de más
   return `<div class="row" style="margin-bottom:12px">${sel}<span class="small">IVA débito del mes: <b class="num">${gs(sumaD(F, 'iva'))}</b></span></div>
   ${tablaLibroIVA(F, x => `<td><b>${esc(x.numero || 's/n')}</b><div class="small muted">${esc(x.presNum || '')}</div></td><td>${esc(x.cliente || '—')}<div class="small muted">${x.doc ? 'RUC/CI ' + esc(x.doc) : ''}</div></td>`, '<b>Sin facturas en el mes</b>Las ventas entran acá cuando se registra la factura en el presupuesto (manual de e-Kuatia\'i o aprobada por SIFEN).')}
   ${pend.length ? `<div class="card pad" style="margin-top:14px"><h3 style="margin-bottom:4px">Ventas sin factura registrada</h3><p class="small muted" style="margin:0 0 8px">Cobradas o confirmadas sin factura cargada en el sistema. No generan IVA débito ni venta en contabilidad (lo cobrado queda como anticipo de cliente). Si ya emitiste la factura en e-Kuatia'i, registrá el número en el presupuesto.</p>
