@@ -132,6 +132,7 @@ table.t{width:100%;border-collapse:collapse}
 .lines td,.lines th{padding:5px 4px}
 .lines th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;font-weight:600}
 .lines .in{min-height:32px;padding:5px 8px}
+.bq{position:relative;display:flex;align-items:center;min-width:0}.bq>svg{position:absolute;left:10px;width:17px;height:17px;color:var(--muted);pointer-events:none}.bq .in{padding-left:34px;padding-right:32px}.bq .x{position:absolute;right:4px;font-size:15px}.bq input[type=search]{-webkit-appearance:none;appearance:none}.bq input::-webkit-search-cancel-button,.bq input::-webkit-search-decoration{-webkit-appearance:none;display:none}
 .x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:5px}
 .x:hover{background:var(--bad-soft);color:var(--bad)}
 .sec{margin-bottom:16px}
@@ -260,6 +261,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const durTxt = ms => { const h = ms/36e5; if (h < 1) return fmtN(ms/6e4) + ' min'; if (h < 48) return fmtN(h,1) + ' h'; return fmtN(h/24,1) + ' días'; };
 
 const IC = {
+  lupa:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
   tool:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 8-8-1.3-1.3a4 4 0 0 0-5-5L14 2z"/><path d="M3 21l6-6"/></svg>',
   stock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
@@ -597,17 +599,29 @@ function viewTablero(){
 }
 
 /* ============ LISTA ============ */
+// Busca por número (LFL-007, 007 o 7), cliente, empresa, RUC, teléfono, código o nombre del case.
+function coincidePres(p, q){
+  const c = p.cliente || {}, vers = p.versiones || [], ver = vers[vers.length - 1] || {};
+  const txt = [p.numero, c.nombre, c.empresa, c.razonSocial, c.documento, c.telefono, c.email, ...(p.productos || []), ...(ver.items || []).map(i => [i.nombre, i.medidas].join(' '))].join(' ');
+  const qd = soloDig(q);
+  if (qd && qd === String(q).trim()) { // solo números: N° de presupuesto; con 3+ cifras también RUC, teléfono o medidas
+    const nd = soloDig(p.numero); if (nd && +nd === +qd) return true;
+    if (qd.length < 3) return false;
+    if (qd.length >= 4 && (soloDig(c.telefono).includes(qd) || soloDig(c.documento).includes(qd))) return true;
+  }
+  return coincide(txt, q);
+}
 function viewLista(){
-  const q = S.lf.q.trim().toLowerCase();
+  const q = S.bq.pres || '';
   const L = S.presupuestos.filter(p =>
     (S.lf.est === 'todos' || (S.lf.est === 'abiertos' ? ABIERTOS.includes(p.estado) : S.lf.est === 'sinfact' ? (p.estado === 'venta' && !tieneFacturaActiva(p)) : S.lf.est === 'seguimiento' ? (['enviado','negociacion'].includes(p.estado) && (Date.now() - new Date(p.actualizado || p.creado)) > (+(P().seguimientoDias || 7)) * 864e5) : p.estado === S.lf.est)) &&
-    (!q || [p.numero, p.cliente&&p.cliente.nombre, p.cliente&&p.cliente.empresa, ...(p.productos||[])].join(' ').toLowerCase().includes(q)));
+    (!q.trim() || coincidePres(p, q)));
   return `
   <div class="top"><div><h1>Presupuestos</h1><p>Cada caso conserva su número, versiones e historial.</p></div>
     <button class="btn pri" onclick="go('nuevo')">${IC.plus} Nuevo</button></div>
   <div class="row" style="margin-bottom:14px">
     <div class="seg">${[['abiertos','Abiertos'],['venta','Ventas'],['perdido','Perdidos'],['todos','Todos'], ...({pendiente:[['pendiente','Por aprobar']], sinfact:[['sinfact','Sin facturar']], seguimiento:[['seguimiento','Sin seguimiento']]}[S.lf.est] || [])].map(([k,n]) => `<button class="${S.lf.est===k?'on':''}" onclick="S.lf.est='${k}';render()">${n}</button>`).join('')}</div>
-    <input class="in grow listq" style="max-width:320px" placeholder="Buscar número, cliente o producto" value="${esc(S.lf.q)}" oninput="S.lf.q=this.value;clearTimeout(window._qt);window._qt=setTimeout(()=>{const p=this.selectionStart;render();requestAnimationFrame(()=>{const i=document.querySelector('[data-q]');if(i){i.focus();i.setSelectionRange(p,p)}})},250)" data-q>
+    ${buscador('pres', 'Buscar N°, cliente, RUC, teléfono o case')}
   </div>
   ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>N°</th><th>Cliente</th><th class="hide-m">Productos</th><th class="r">Importe</th><th class="hide-m">Estado</th><th class="hide-m">Actualizado</th></tr></thead><tbody>
     ${L.map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td style="white-space:nowrap"><b>${esc(p.numero)}</b><div class="small muted">v${(p.versiones||[]).length||0}</div></td>
@@ -615,7 +629,7 @@ function viewLista(){
       <td class="hide-m small">${esc((p.productos||[]).join(', ')||'—')}</td>
       <td class="r num" style="white-space:nowrap"><b>${p.precioFinal ? gs(p.precioFinal) : '—'}</b></td>
       <td class="hide-m">${estTag(p.estado, p.aprobado)}</td><td class="hide-m small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}
-  </tbody></table>` : `<div class="empty"><b>No hay presupuestos ${S.lf.est==='abiertos'?'abiertos':''}</b>Creá uno desde “Nuevo” o desde el Asistente.</div>`}</div>`)}`;
+  </tbody></table>` : q.trim() ? (() => { const otros = S.lf.est === 'todos' ? 0 : S.presupuestos.filter(p => coincidePres(p, q)).length; return otros ? `<div class="empty"><b>Sin resultados en esta pestaña</b>Hay ${otros} en otros estados. <button class="btn sm" style="margin-top:8px" onclick="S.lf.est='todos';render()">Ver en Todos</button></div>` : sinResultados(q); })() : `<div class="empty"><b>No hay presupuestos ${S.lf.est==='abiertos'?'abiertos':''}</b>Creá uno desde “Nuevo” o desde el Asistente.</div>`}</div>`)}`;
 }
 
 /* ============ EDITOR / CALCULADORA ============ */
@@ -1065,10 +1079,13 @@ async function saveParams(){
 }
 function viewMateriales(ro){
   const oR = r => { const i = ORDEN_ROL.indexOf(r); return i < 0 ? 99 : i; };
-  const L = S.materiales.slice().sort((a,b) => (oR(a.rol) - oR(b.rol)) || String(a.nombre).localeCompare(String(b.nombre)));
+  const q = S.bq.mat || '';
+  const L = S.materiales.slice().sort((a,b) => (oR(a.rol) - oR(b.rol)) || String(a.nombre).localeCompare(String(b.nombre)))
+    .filter(m => coincide([m.nombre, ROLN[m.rol], m.unidad, m.proveedor, m.ancho && m.largo ? m.ancho + 'x' + m.largo : ''].join(' '), q));
   return `<div class="card">
     <div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Materiales e insumos</h2><p class="small muted" style="margin:2px 0 0">El <b>rol</b> permite estimar cantidades en trabajos a medida.</p></div>${ro ? '' : `<button class="btn pri sm" onclick="editMat()">+ Material</button>`}</div>
-    ${L.length ? `<table class="t"><thead><tr><th>Material</th><th class="hide-m">Rol</th><th>Unidad</th><th class="r">Precio</th><th class="hide-m">Proveedor</th>${ro?'':'<th></th>'}</tr></thead><tbody>
+    ${S.materiales.length ? `<div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)">${buscador('mat', 'Buscar material, rol o proveedor')}</div>` : ''}
+    ${!L.length && q.trim() && S.materiales.length ? sinResultados(q, S.materiales.length) : L.length ? `<table class="t"><thead><tr><th>Material</th><th class="hide-m">Rol</th><th>Unidad</th><th class="r">Precio</th><th class="hide-m">Proveedor</th>${ro?'':'<th></th>'}</tr></thead><tbody>
     ${L.map(m => `<tr><td><b>${esc(m.nombre)}</b> ${m.ejemplo ? '<span class="ej">Ejemplo</span>' : ''}</td><td class="hide-m small">${esc(ROLN[m.rol]||'—')}</td><td>${esc(m.unidad)}</td><td class="r num">${gs(m.precio)}</td><td class="hide-m small muted">${esc(m.proveedor||'—')}</td>${ro?'':`<td class="r"><button class="btn sm ghost" onclick="editMat('${esc(m.id)}')">Editar</button></td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty"><b>Sin materiales</b>Cargá la lista de materiales con precio vigente.</div>`}
   </div>`;
 }
@@ -1098,8 +1115,10 @@ function viewProductos(ro){
   const Pp = P();
   return `<div class="card">
     <div class="pad row" style="justify-content:space-between;border-bottom:1px solid var(--line)"><div><h2>Productos</h2><p class="small muted" style="margin:2px 0 0">Cada producto tiene su lista de materiales y tiempo de fabricación.</p></div>${ro ? '' : `<button class="btn pri sm" onclick="editProd()">+ Producto</button>`}</div>
-    ${S.productos.length ? `<table class="t"><thead><tr><th>Código</th><th>Producto</th><th class="r hide-m">Horas</th><th class="r">Costo aprox.</th><th class="r">Precio sugerido</th>${ro?'':'<th></th>'}</tr></thead><tbody>
-    ${S.productos.map(p => { const it = itemDesdeProducto(p, 1); const c = calc([it], [], Pp, Pp.margenObjetivo, 0); return `<tr><td><b>${esc(p.codigo)}</b></td><td>${esc(p.nombre)}${p.medidas ? `<div class="small muted">${esc(p.medidas)}</div>` : ''}</td><td class="r num hide-m">${fmtN(p.horas||0,2)}</td><td class="r num">${gs(c.costo)}</td><td class="r num"><b>${gs(c.precio)}</b>${+p.precioActual ? `<div class="small muted">Actual ${gs(p.precioActual)}</div>` : ''}</td>${ro?'':`<td class="r"><button class="btn sm ghost" onclick="editProd('${esc(p.id)}')">Editar</button></td>`}</tr>`; }).join('')}</tbody></table>` :
+    ${S.productos.length ? `<div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)">${buscador('prod', 'Buscar código, nombre o medidas')}</div>` : ''}
+    ${(() => { const q = S.bq.prod || ''; window._prodL = S.productos.filter(p => coincide([p.codigo, p.nombre, p.medidas, p.notas].join(' '), q)); return !window._prodL.length && q.trim() && S.productos.length ? sinResultados(q, S.productos.length) : ''; })()}
+    ${window._prodL.length ? `<table class="t"><thead><tr><th>Código</th><th>Producto</th><th class="r hide-m">Horas</th><th class="r">Costo aprox.</th><th class="r">Precio sugerido</th>${ro?'':'<th></th>'}</tr></thead><tbody>
+    ${window._prodL.map(p => { const it = itemDesdeProducto(p, 1); const c = calc([it], [], Pp, Pp.margenObjetivo, 0); return `<tr><td><b>${esc(p.codigo)}</b></td><td>${esc(p.nombre)}${p.medidas ? `<div class="small muted">${esc(p.medidas)}</div>` : ''}</td><td class="r num hide-m">${fmtN(p.horas||0,2)}</td><td class="r num">${gs(c.costo)}</td><td class="r num"><b>${gs(c.precio)}</b>${+p.precioActual ? `<div class="small muted">Actual ${gs(p.precioActual)}</div>` : ''}</td>${ro?'':`<td class="r"><button class="btn sm ghost" onclick="editProd('${esc(p.id)}')">Editar</button></td>`}</tr>`; }).join('')}</tbody></table>` :
     `<div class="empty"><b>Catálogo sin productos</b>Pendiente: lista de productos con códigos, medidas, materiales y horas (sección A del relevamiento).</div>`}
   </div>`;
 }
@@ -1645,13 +1664,25 @@ async function anularFacturaManual(pid){
 
 
 /* ============ CLIENTES (catastro) ============ */
+// Buscador con lupa: filtra mientras se escribe, sin tildes ni mayúsculas; varias palabras = todas deben aparecer.
+S.bq = {};
+const coincide = (txt, q) => { q = normTxt(q); if (!q) return true; const t = normTxt(txt); return q.split(/\s+/).every(w => t.includes(w)); };
+function buscador(k, ph, w){
+  const v = S.bq[k] || '';
+  return `<div class="bq grow listq" style="max-width:${w || 340}px">${IC.lupa}<input class="in" type="search" enterkeyhint="search" autocomplete="off" placeholder="${esc(ph)}" value="${esc(v)}" data-bq="${k}" oninput="buscarEn('${k}',this)">${v ? `<button class="x" type="button" aria-label="Limpiar búsqueda" onclick="S.bq['${k}']='';render()">✕</button>` : ''}</div>`;
+}
+function buscarEn(k, el){
+  S.bq[k] = el.value; clearTimeout(window._bqt);
+  window._bqt = setTimeout(() => { const p = el.selectionStart; render(); requestAnimationFrame(() => { const i = document.querySelector(`[data-bq="${k}"]`); if (i) { i.focus(); try { i.setSelectionRange(p, p); } catch(e) {} } }); }, 250);
+}
+const sinResultados = (q, n) => `<div class="empty"><b>Sin resultados para “${esc(q)}”</b>Probá con otra palabra${n ? ` · hay ${n} en total` : ''}.</div>`;
 const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const soloDig = s => String(s || '').replace(/\D/g, '');
 const CLI_CAMPOS = ['nombre','empresa','telefono','email','tipoDoc','documento','razonSocial','direccion','ciudad','notas'];
 function buscarClientes(q, n = 8){
   q = normTxt(q); if (!q) return [];
   const qd = soloDig(q);
-  return S.clientes.filter(c => normTxt([c.nombre, c.empresa, c.razonSocial, c.documento, c.email].join(' ')).includes(q) || (qd.length >= 4 && (soloDig(c.telefono).includes(qd) || soloDig(c.documento).includes(qd))))
+  return S.clientes.filter(c => coincide([c.nombre, c.empresa, c.razonSocial, c.documento, c.email, c.ciudad].join(' '), q) || (qd.length >= 4 && (soloDig(c.telefono).includes(qd) || soloDig(c.documento).includes(qd))))
     .sort((a,b) => String(a.nombre).localeCompare(String(b.nombre))).slice(0, n);
 }
 const presDeCliente = id => S.presupuestos.filter(p => p.cliente && p.cliente.clienteId === id);
@@ -1708,12 +1739,12 @@ function soltarCliente(){ if (!S.draft) return; S.draft.cliente = {nombre:'', te
 // --- pantalla Clientes ---
 S.cf = {q:''};
 function viewClientes(){
-  const q = S.cf.q;
+  const q = S.bq.cli || '';
   const L = q.trim() ? buscarClientes(q, 500) : S.clientes.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
   return `<div class="top"><div><h1>Clientes</h1><p>Catastro de clientes. Se agendan solos al guardar un presupuesto, o a mano desde acá.</p></div>
     <button class="btn pri" onclick="editarCliente()">${IC.plus} Nuevo cliente</button></div>
   ${(() => { const sin = S.presupuestos.filter(p => p.cliente && p.cliente.nombre && !p.cliente.clienteId); return sin.length ? `<div class="note info" style="margin-bottom:14px;align-items:center">${IC.info}<div class="grow">Hay ${sin.length} presupuesto${sin.length > 1 ? 's' : ''} con clientes sin agendar (creados antes de este módulo).</div><button class="btn sm dark" onclick="importarClientes()">Agendarlos</button></div>` : ''; })()}
-  <div class="row" style="margin-bottom:14px"><input class="in grow listq" style="max-width:420px" placeholder="Buscar por nombre, empresa, RUC o teléfono" value="${esc(q)}" data-cq oninput="S.cf.q=this.value;clearTimeout(window._cq);window._cq=setTimeout(()=>{const p=this.selectionStart;render();requestAnimationFrame(()=>{const i=document.querySelector('[data-cq]');if(i){i.focus();i.setSelectionRange(p,p)}})},250)"></div>
+  <div class="row" style="margin-bottom:14px">${buscador('cli', 'Buscar por nombre, empresa, RUC o teléfono', 420)}</div>
   ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>Cliente</th><th class="hide-m">Email</th><th class="r">Presup.</th><th class="r">Ventas</th><th class="hide-m">Último movimiento</th></tr></thead><tbody>
     ${L.map(c => { const ps = presDeCliente(c.id); const vs = ps.filter(p => p.estado === 'venta'); const ult = ps.map(p => p.actualizado || p.creado).sort().pop();
       return `<tr class="click" onclick="fichaCliente('${esc(c.id)}')"><td>${cliLinea(c)}</td><td class="hide-m small">${esc(c.email || '—')}</td><td class="r num">${ps.length}</td><td class="r num">${vs.length ? gs(vs.reduce((s,p) => s + (+p.precioFinal||0), 0)) : '—'}</td><td class="hide-m small muted">${ult ? fDate(ult) : '—'}</td></tr>`; }).join('')}
@@ -3013,6 +3044,7 @@ function viewStock(){
 function skExistencias(){
   const {st} = motorStock();
   const mats = S.materiales.slice().sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+  const qs = S.bq.stock || '', matsV = mats.filter(m => coincide([m.nombre, m.proveedor, ROLN[m.rol]].join(' '), qs));
   const term = Object.keys(st).filter(k => !k.startsWith('m:') && Math.abs(st[k].cant) > 1e-9);
   const vMat = mats.reduce((s,m) => s + ((st['m:' + m.id] || {}).valor || 0), 0), vTer = term.reduce((s,k) => s + st[k].valor, 0);
   const comprom = comprometidoOT();
@@ -3021,13 +3053,14 @@ function skExistencias(){
   <div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="card kpi"><div class="l">Materiales</div><div class="v num">${gsM(vMat)}</div><div class="s">Costo promedio, sin IVA</div></div>
     <div class="card kpi"><div class="l">Productos terminados</div><div class="v num">${gsM(vTer)}</div><div class="s">${term.filter(k => st[k].cant > 0).length} ítems en stock</div></div>
     <div class="card kpi"><div class="l">En producción</div><div class="v num">${gsM(Object.values(motorStock().wip).reduce((s,v) => s + Math.max(v,0), 0))}</div><div class="s">Materiales entregados a OT abiertas</div></div></div>
-  <div class="card"><table class="t"><thead><tr><th>Material</th><th class="r">Stock</th><th class="r hide-m">Comprometido OT</th><th class="r">Disponible</th><th class="r hide-m">Costo prom.</th><th class="r">Valor</th></tr></thead><tbody>
-    ${mats.map(m => { const k = 'm:' + m.id, s = st[k] || {cant:0, valor:0, avg:+m.precio || 0}; const c = comprom[m.id] || 0, disp = s.cant - c;
+  <div class="row" style="margin-bottom:12px">${buscador('stock', 'Buscar material en stock')}</div>
+  <div class="card">${!matsV.length && qs.trim() ? sinResultados(qs, mats.length) : ''}<table class="t" ${!matsV.length ? 'style="display:none"' : ''}><thead><tr><th>Material</th><th class="r">Stock</th><th class="r hide-m">Comprometido OT</th><th class="r">Disponible</th><th class="r hide-m">Costo prom.</th><th class="r">Valor</th></tr></thead><tbody>
+    ${matsV.map(m => { const k = 'm:' + m.id, s = st[k] || {cant:0, valor:0, avg:+m.precio || 0}; const c = comprom[m.id] || 0, disp = s.cant - c;
       return `<tr class="click" onclick="S.sk.tab='kardex';S.sk.item='${k}';render()"><td><b>${esc(m.nombre)}</b>${s.cant < -1e-6 ? ' <span class="tag" style="background:var(--bad-soft);color:var(--bad)">Negativo</span>' : ''}</td><td class="r num">${fmtN(s.cant, 2)} ${esc(m.unidad)}</td>
         <td class="r num hide-m">${c ? fmtN(c, 2) : '—'}</td><td class="r num" style="color:${disp < -1e-6 ? 'var(--bad)' : 'inherit'}"><b>${fmtN(disp, 2)}</b></td><td class="r num hide-m">${gs(s.avg)}</td><td class="r num">${gs(s.valor)}</td></tr>`; }).join('')}
   </tbody></table></div>
   ${term.length ? `<div class="card" style="margin-top:14px"><div class="pad" style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>Productos terminados</b></div><table class="t"><tbody>
-    ${term.map(k => { const s = st[k], i = itemInfo(k); return `<tr class="click" onclick="S.sk.tab='kardex';S.sk.item='${k}';render()"><td>${esc(i.nombre)}</td><td class="r num">${fmtN(s.cant, 0)} u</td><td class="r num">${gs(s.avg)}/u</td><td class="r num">${gs(s.valor)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    ${term.filter(k => coincide(itemInfo(k).nombre, qs)).map(k => { const s = st[k], i = itemInfo(k); return `<tr class="click" onclick="S.sk.tab='kardex';S.sk.item='${k}';render()"><td>${esc(i.nombre)}</td><td class="r num">${fmtN(s.cant, 0)} u</td><td class="r num">${gs(s.avg)}/u</td><td class="r num">${gs(s.valor)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
   <div class="row" style="margin-top:12px"><button class="btn sm" onclick="inventarioInicial()">Inventario inicial</button><button class="btn sm" onclick="planillaInventario()">⬇ Planilla Excel</button><button class="btn sm" onclick="importarInventario()">⬆ Subir Excel</button><span class="small muted">Tocá un material para ver su kardex. "Comprometido" = pendiente de entregar a órdenes de trabajo abiertas.</span></div>`;
 }
 function skKardex(){
@@ -3048,8 +3081,9 @@ async function inventarioInicial(){
   const filas = [...S.materiales.map(m => ({k:'m:' + m.id, n:m.nombre, u:m.unidad, c:+m.precio || 0})), ...S.productos.map(p => ({k:'p:' + p.id, n:`${p.codigo} ${p.nombre}`, u:'u', c:0}))];
   const r = await dialog('Inventario inicial', `<p class="small" style="margin-top:0">Cargá lo que hay hoy en la fábrica. El costo unitario (sin IVA) viene del catálogo: corregilo si hace falta. Se contabiliza contra Capital.</p>
     <label class="f" style="max-width:200px">Fecha<input class="in" type="date" id="ii-f" value="${hoyISO()}"></label>
+    <div class="bq" style="margin-top:10px">${IC.lupa}<input class="in" type="search" autocomplete="off" placeholder="Filtrar ítems" oninput="const q=this.value;this.closest('.dlg').querySelectorAll('[data-iin]').forEach(tr=>tr.style.display=coincide(tr.dataset.iin,q)?'':'none')"></div>
     <div style="max-height:50vh;overflow:auto;margin-top:10px"><table class="lines ft"><thead><tr><th>Ítem</th><th class="r" style="width:110px">Cantidad</th><th class="r" style="width:130px">Costo unit. ₲</th></tr></thead><tbody>
-    ${filas.map((f, i) => `<tr><td>${esc(f.n)} <span class="small muted">(${esc(f.u)})</span></td><td><input class="in r" type="number" step="0.01" id="ii-q${i}"></td><td><input class="in r" type="number" id="ii-c${i}" value="${f.c || ''}"></td></tr>`).join('')}</tbody></table></div>`, 'Registrar', () => {
+    ${filas.map((f, i) => `<tr data-iin="${esc(f.n)}"><td>${esc(f.n)} <span class="small muted">(${esc(f.u)})</span></td><td><input class="in r" type="number" step="0.01" id="ii-q${i}"></td><td><input class="in r" type="number" id="ii-c${i}" value="${f.c || ''}"></td></tr>`).join('')}</tbody></table></div>`, 'Registrar', () => {
       const lineas = filas.map((f, i) => ({item:f.k, cant:pf($(`#ii-q${i}`).value), costoUnit:pf($(`#ii-c${i}`).value)})).filter(l => l.cant > 0);
       if (!lineas.length) { toast('Cargá al menos una cantidad'); return false; }
       if (lineas.some(l => !(l.costoUnit > 0))) { toast('Cada ítem con cantidad necesita costo unitario'); return false; }
@@ -3161,8 +3195,8 @@ async function patchOT(id, cambios, texto){
 S.otf = {est:'abiertas', q:''}; S.otId = null;
 function viewOT(){
   const O = (S.ots || []).slice().sort((a,b) => String(b.id).localeCompare(String(a.id)));
-  const f = S.otf.est, q = normTxt(S.otf.q);
-  const L = O.filter(o => (f === 'todas' || (f === 'abiertas' ? OT_ABIERTAS.includes(o.estado) : f === 'atrasadas' ? otAtrasada(o) : o.estado === f)) && (!q || normTxt([o.id, o.cliente, o.codigo, o.descripcion, o.presNum].join(' ')).includes(q)));
+  const f = S.otf.est, q = S.bq.ot || '';
+  const L = O.filter(o => (f === 'todas' || (f === 'abiertas' ? OT_ABIERTAS.includes(o.estado) : f === 'atrasadas' ? otAtrasada(o) : o.estado === f)) && (!q.trim() || coincide([o.id, o.cliente, o.codigo, o.descripcion, o.presNum].join(' '), q)));
   const abiertas = O.filter(o => OT_ABIERTAS.includes(o.estado)), atras = O.filter(otAtrasada);
   const horasPend = abiertas.reduce((s,o) => s + (o.etapas || []).filter(e => !e.hecha).reduce((t,e) => t + (+e.horasEst || 0), 0), 0);
   const cap = +P().horasProductivasMes || 0;
@@ -3176,7 +3210,7 @@ function viewOT(){
     <div class="card kpi"><div class="l">Entregas en fecha</div><div class="v num">${entregadas.length ? pct(enFecha / entregadas.length, 0) : '—'}</div><div class="s">${entregadas.length} entregadas con fecha prometida</div></div>
     <div class="card kpi"><div class="l">Margen real promedio</div><div class="v num">${isNaN(mReal) ? '—' : pct(mReal)}</div><div class="s">${cerr.length} OT cerradas</div></div></div>
   <div class="row" style="margin-bottom:12px"><div class="seg">${[['abiertas','Abiertas'],['atrasadas','Atrasadas'],['diseno','Diseño'],['en_produccion','En producción'],['cerrada','Cerradas'],['todas','Todas']].map(([k,n]) => `<button class="${f===k?'on':''}" onclick="S.otf.est='${k}';render()">${n}</button>`).join('')}</div>
-    <input class="in grow listq" style="max-width:280px" placeholder="Buscar OT, cliente o producto" value="${esc(S.otf.q)}" data-oq oninput="S.otf.q=this.value;clearTimeout(window._oq);window._oq=setTimeout(()=>{const p=this.selectionStart;render();requestAnimationFrame(()=>{const i=document.querySelector('[data-oq]');if(i){i.focus();i.setSelectionRange(p,p)}})},250)"></div>
+    ${buscador('ot', 'Buscar OT, cliente o producto', 300)}</div>
   ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>OT</th><th>Producto</th><th class="hide-m">Cliente</th><th class="r hide-m">Avance</th><th>Prometida</th><th>Estado</th></tr></thead><tbody>
     ${L.map(o => { const et = o.etapas || []; const av = et.length ? et.filter(e => e.hecha).length / et.length : 0;
       return `<tr class="click" onclick="abrirOT('${esc(o.id)}')"><td><b>${esc(o.id)}</b><div class="small muted">${o.presNum ? esc(o.presNum) + ' · r' + o.renglon : 'Para stock'}</div></td>
