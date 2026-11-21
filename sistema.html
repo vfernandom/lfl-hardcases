@@ -296,13 +296,14 @@ const ABIERTOS = ['solicitud','elaboracion','pendiente','enviado','negociacion']
 const EMITIDOS = ['enviado','negociacion','venta','perdido'];
 const ROLES = [
   {k:'placa', n:'Placa (terciada) · área exterior'}, {k:'revestimiento', n:'Revestimiento exterior (fórmica PVC) · área exterior'},
+  {k:'chapa', n:'Chapa (ACM / aluminio) · carga manual'},
   {k:'forro', n:'Forro interior (goma EVA / Ethafoam) · área interior'}, {k:'espuma', n:'Espuma (D33) · área interior'},
   {k:'perfil', n:'Perfil L (aristas)'}, {k:'perfilcierre', n:'Perfil M macho/hembra (tapa)'},
   {k:'esquinero', n:'Canto bola / esquinero'}, {k:'matajunta', n:'Mata junta'}, {k:'cierre', n:'Cierre'}, {k:'bisagra', n:'Bisagra'}, {k:'manija', n:'Manija'}, {k:'rueda', n:'Rueda'},
   {k:'consumible', n:'Consumibles'}, {k:'otro', n:'Otro'}];
 // Orden en que se lanzan los materiales al estimar un case a medida
 const GRUPOS_EST = [
-  {n:'Placas y revestimientos', r:['placa','revestimiento','forro','espuma']},
+  {n:'Placas y revestimientos', r:['placa','revestimiento','chapa','forro','espuma']},
   {n:'Perfiles', r:['perfil','perfilcierre']},
   {n:'Herrajes', r:['esquinero','matajunta','cierre','bisagra','manija','rueda']},
   {n:'Consumibles y otros', r:['consumible','otro']}];
@@ -2821,7 +2822,7 @@ function factorUnidad(u, tipo){ const n = String(u || '').toLowerCase().replace(
 function cantFormato(m, base, tipo){
   const u = String(m.unidad || '').toLowerCase().replace(/\s|\./g, ''), an = (+m.ancho || 0) / 1000, la = (+m.largo || 0) / 1000;
   if (tipo === 'area') {
-    if (['placa','placas','hoja','plancha'].includes(u) && an && la) return base / (an * la);
+    if (['placa','placas','hoja','plancha','planchas','chapa','chapas'].includes(u) && an && la) return base / (an * la);
     if (u === 'm' && an) return base / an;
     if (u === 'mm' && an) return base / an * 1000;
     return base * factorUnidad(m.unidad, 'area');
