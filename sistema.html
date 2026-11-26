@@ -1481,7 +1481,9 @@ let FX = null; // estado del formulario de factura
 function abrirFacturar(pid){
   const p = S.presupuestos.find(x => x.id === pid); if (!p) return;
   const {lineas, total, ivaPct} = lineasFactura(p);
-  const c = p.cliente || {};
+  const pc = p.cliente || {}; const d = soloDig(pc.documento), t = soloDig(pc.telefono);
+  const ag = (pc.clienteId && S.clientes.find(x => x.id === pc.clienteId)) || S.clientes.find(x => (d.length >= 5 && soloDig(x.documento) === d) || (t.length >= 7 && soloDig(x.telefono) === t)) || {};
+  const c = {}; ['tipoDoc','documento','razonSocial','empresa','nombre','email'].forEach(k => { c[k] = String(ag[k] || '').trim() || String(pc[k] || '').trim(); }); // agenda actualizada primero; si falta, lo que quedó en el presupuesto
   FX = {manual: modoFactura() === 'manual', pid, total, ivaPct, receptor:{document_type: c.tipoDoc || 'ruc', document_number: c.documento || '', name: c.razonSocial || c.empresa || c.nombre || '', email: c.email || ''}, condicion:'contado', plazo_dias:30, items: lineas};
   dibujarFacturar();
 }
@@ -1986,12 +1988,14 @@ const fondoSaldo = (f, hasta) => {
     if (m.tipo === 'transferencia' && m.fondoDestinoId === f.id) s += +m.monto; });
   return s;
 };
+// Total a cobrar de un presupuesto CON IVA incluido (mismo cálculo que la factura). El precio guardado (precioFinal) es sin IVA.
+function totalConIva(p){ const v = (p && p.versiones || [])[(p && p.versiones || []).length - 1]; if (!v || !v.calc) return +(p && p.precioFinal) || 0; const t = +(v.params && v.params.ivaPct) || 0; return Math.round((+v.calc.precio || 0) + (t ? (+v.calc.iva || 0) : 0)); }
 function cobranzas(){ // por presupuesto: facturado vs cobrado
   const fact = {}; ventasContables().forEach(v => { fact[v.presId] = (fact[v.presId] || 0) + v.total; });
   const cob = {}; (S.movimientos || []).filter(m => !m.anulado && m.tipo === 'ingreso' && m.categoria === 'cobro' && m.presupuestoId).forEach(m => { cob[m.presupuestoId] = (cob[m.presupuestoId] || 0) + +m.monto; });
   const ids = new Set([...Object.keys(fact), ...Object.keys(cob), ...S.presupuestos.filter(p => p.estado === 'venta').map(p => p.id)]);
   return [...ids].map(id => { const p = S.presupuestos.find(x => x.id === id) || {}; const f = fact[id] || 0, c = cob[id] || 0;
-    return {id, numero:p.numero || id, cliente:(p.cliente && p.cliente.nombre) || '', venta:+p.precioFinal || 0, facturado:f, cobrado:c, saldo:(f || +p.precioFinal || 0) - c}; })
+    return {id, numero:p.numero || id, cliente:(p.cliente && p.cliente.nombre) || '', venta:totalConIva(p), facturado:f, cobrado:c, saldo:(f || totalConIva(p)) - c}; })
     .sort((a,b) => b.saldo - a.saldo);
 }
 
@@ -2502,7 +2506,7 @@ function tablaLibroIVA(F, celdas, vacio){
 }
 function ctLibroVentas(){
   const sel = selMesCt(); const F = filasLibroVentas(S.ct.mes);
-  const totalCI = p => { const v = (p.versiones || [])[(p.versiones || []).length - 1]; if (!v || !v.calc) return +p.precioFinal || 0; const t = +(v.params && v.params.ivaPct) || 0; return Math.round((+v.calc.precio || 0) + (t ? (+v.calc.iva || 0) : 0)); }; // precio del presupuesto es sin IVA
+  const totalCI = totalConIva;
   const pend = cobranzas().map(r => { const p = S.presupuestos.find(x => x.id === r.id) || {};
     return {...r, falta: r.facturado ? r.cobrado - r.facturado : Math.max(r.cobrado, p.estado === 'venta' ? totalCI(p) : 0)}; }).filter(r => r.falta > 0); // con factura: solo si se cobró de más
   return `<div class="row" style="margin-bottom:12px">${sel}<span class="small">IVA débito del mes: <b class="num">${gs(sumaD(F, 'iva'))}</b></span></div>
@@ -3317,7 +3321,7 @@ async function aprobarPlano(){ const o = otActual(); if (!o) return; const e = o
 function cobradoPres(pid){ return (S.movimientos || []).filter(m => !m.anulado && m.tipo === 'ingreso' && m.categoria === 'cobro' && m.presupuestoId === pid).reduce((s,m) => s + +m.monto, 0); }
 async function liberarOT(){ const o = otActual(); if (!o) return; const Pp = P();
   if (o.tipo === 'a_medida' && !(o.espec || {}).planoAprobado) { toast('Un case a medida necesita el plano aprobado'); return; }
-  if (Pp.anticipoParaLiberar && o.presupuestoId) { const p = S.presupuestos.find(x => x.id === o.presupuestoId) || {}; const req = (+p.precioFinal || 0) * (+Pp.anticipoPct || 0) / 100; const cob = cobradoPres(o.presupuestoId);
+  if (Pp.anticipoParaLiberar && o.presupuestoId) { const p = S.presupuestos.find(x => x.id === o.presupuestoId) || {}; const req = totalConIva(p) * (+Pp.anticipoPct || 0) / 100; const cob = cobradoPres(o.presupuestoId);
     if (cob < req) { if (!S.canAdmin) { toast(`Falta el anticipo: cobrado ${gs(cob)} de ${gs(req)}`); return; }
       if (!(await dialog('Anticipo no cobrado', `Cobrado ${gs(cob)} de un anticipo de ${gs(req)}. ¿Liberar igual como excepción?`, 'Liberar igual'))) return; } }
   const F = faltantesOT().filter(f => (o.materiales || []).some(m => m.materialId === f.id));
@@ -3671,7 +3675,7 @@ async function pdfRecibo(movId, api){
   const fact = numerosFactura(p);
   const previo = (S.movimientos || []).filter(x => !x.anulado && x.categoria === 'cobro' && x.presupuestoId === m.presupuestoId && (x.fecha + (x.at || '')) <= (m.fecha + (m.at || '')));
   const cobrado = previo.reduce((s, x) => s + +x.monto, 0); const fTot = ventasContables().filter(v => v.presId === m.presupuestoId).reduce((s, v) => s + v.total, 0);
-  const total = fTot || (p ? +p.precioFinal || 0 : 0);
+  const total = fTot || (p ? totalConIva(p) : 0);
   const concepto = m.categoria !== 'cobro' ? (m.concepto || CAT_ING[m.categoria] || 'Ingreso') : fact.length ? `Pago a cuenta de la factura ${fact.join(', ')} (presupuesto ${p ? p.numero : ''})` : `Anticipo del presupuesto ${p ? p.numero : ''}`;
   yy = fila('En concepto de', concepto + (m.concepto && m.categoria === 'cobro' ? ' · ' + m.concepto : ''), yy);
   const fo = (S.fondos || []).find(f => f.id === m.fondoId); yy = fila('Forma de pago', `${fo ? fo.nombre : ''}${m.comprobante ? ' · Comprobante ' + m.comprobante : ''}`, yy);
@@ -3692,12 +3696,12 @@ async function pdfRecibo(movId, api){
 /* ---------- cobros y anticipos en la ficha del presupuesto ---------- */
 function cobrosPresHTML(p){
   const cob = (S.movimientos || []).filter(m => m.categoria === 'cobro' && m.presupuestoId === p.id).sort((a, b) => (a.fecha + (a.at || '')).localeCompare(b.fecha + (b.at || '')));
-  const fact = ventasContables().filter(v => v.presId === p.id).reduce((s, v) => s + v.total, 0); const total = fact || +p.precioFinal || 0;
+  const fact = ventasContables().filter(v => v.presId === p.id).reduce((s, v) => s + v.total, 0); const total = fact || totalConIva(p);
   const cobrado = cob.filter(m => !m.anulado).reduce((s, m) => s + +m.monto, 0); const req = Math.round(total * (+P().anticipoPct || 0) / 100);
   const entregadas = (S.ots || []).some(o => o.presupuestoId === p.id && ['entregada', 'cerrada'].includes(o.estado));
   return `<div class="card pad"><div class="row" style="justify-content:space-between"><h3>Cobros</h3><div class="row">
       <button class="btn sm" onclick="nuevoIngreso('cobro','${esc(p.id)}')">${cobrado ? '+ Cobro' : '+ Anticipo'}</button>${entregadas ? `<button class="btn sm" onclick="pdfEntrega('${esc(p.id)}')">Constancia de entrega</button>${waActivo() ? `<button class="btn sm" onclick="pdfEntrega('${esc(p.id)}',null,true)">Constancia por WhatsApp</button>` : ''}` : ''}</div></div>
-    <div class="small" style="margin:6px 0">${fact ? 'Facturado' : 'Venta (sin facturar)'} <b class="num">${gs(total)}</b> · Cobrado <b class="num">${gs(cobrado)}</b> · Saldo <b class="num" style="color:${total - cobrado > 0 ? 'var(--bad)' : 'var(--ok)'}">${gs(total - cobrado)}</b>${req && cobrado < req && !fact ? ` · <span style="color:var(--warn)">Anticipo pendiente: ${gs(req - cobrado)}</span>` : ''}</div>
+    <div class="small" style="margin:6px 0">${fact ? 'Facturado' : 'Venta con IVA (sin facturar)'} <b class="num">${gs(total)}</b> · Cobrado <b class="num">${gs(cobrado)}</b> · Saldo <b class="num" style="color:${total - cobrado > 0 ? 'var(--bad)' : 'var(--ok)'}">${gs(total - cobrado)}</b>${req && cobrado < req && !fact ? ` · <span style="color:var(--warn)">Anticipo pendiente: ${gs(req - cobrado)}</span>` : ''}</div>
     ${cob.length ? `<table class="t" style="font-size:13.5px"><tbody>${cob.map(m => `<tr ${m.anulado ? 'style="opacity:.45;text-decoration:line-through"' : ''}><td class="small">${fDate(m.fecha)}</td><td>${esc(m.numeroRecibo || '')}<div class="small muted">${esc(((S.fondos || []).find(f => f.id === m.fondoId) || {}).nombre || '')}</div></td><td class="r num">${gs(m.monto)}</td>
       <td class="r" style="white-space:nowrap"><button class="btn sm ghost" onclick="pdfRecibo('${esc(m.id)}')">Recibo PDF</button>${waActivo() && !m.anulado ? `<button class="btn sm ghost" onclick="pdfRecibo('${esc(m.id)}',true)">WhatsApp</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="small muted">Sin cobros todavía. Un cobro antes de facturar queda como anticipo del cliente.</div>'}</div>`;
 }
@@ -3711,7 +3715,7 @@ function avisos(){
   if (S.canAdmin) add('fact', S.presupuestos.filter(p => p.estado === 'venta' && !tieneFacturaActiva(p)).length, 'ventas aprobadas sin facturar', "S.lf.est='sinfact';go('presupuestos')");
   add('pagar', (S.ordenes || []).filter(o => o.estado === 'aprobada').length, 'órdenes de pago aprobadas sin pagar', "S.cj.tab='op';go('caja')");
   add('otat', (S.ots || []).filter(otAtrasada).length, 'órdenes de trabajo atrasadas', "S.otf.est='atrasadas';go('ot')", 'bad');
-  if (P().anticipoParaLiberar) add('antic', (S.ots || []).filter(o => o.estado === 'planificada' && o.presupuestoId && (() => { const p = S.presupuestos.find(x => x.id === o.presupuestoId) || {}; return cobradoPres(p.id) < (+p.precioFinal || 0) * (+P().anticipoPct || 0) / 100; })()).length, 'OT esperan el anticipo para liberarse', "S.otf.est='abiertas';go('ot')");
+  if (P().anticipoParaLiberar) add('antic', (S.ots || []).filter(o => o.estado === 'planificada' && o.presupuestoId && (() => { const p = S.presupuestos.find(x => x.id === o.presupuestoId) || {}; return cobradoPres(p.id) < totalConIva(p) * (+P().anticipoPct || 0) / 100; })()).length, 'OT esperan el anticipo para liberarse', "S.otf.est='abiertas';go('ot')");
   add('wa', (S.wachats || []).filter(c => c.noLeidos > 0).length, 'conversaciones de WhatsApp sin leer', "go('whatsapp')", 'bad');
   add('falt', faltantesOT().length, 'materiales faltan para las OT abiertas', "S.sk.tab='faltantes';go('stock')");
   add('seg', S.presupuestos.filter(p => ['enviado', 'negociacion'].includes(p.estado) && (S.canAdmin || p.creadoPor === S.me) && (Date.now() - new Date(p.actualizado || p.creado)) > segD * 864e5).length, `presupuestos enviados sin movimiento hace más de ${segD} días`, "S.lf.est='seguimiento';go('presupuestos')");
