@@ -624,11 +624,11 @@ function viewLista(){
     <div class="seg">${[['abiertos','Abiertos'],['venta','Ventas'],['perdido','Perdidos'],['todos','Todos'], ...({pendiente:[['pendiente','Por aprobar']], sinfact:[['sinfact','Sin facturar']], seguimiento:[['seguimiento','Sin seguimiento']]}[S.lf.est] || [])].map(([k,n]) => `<button class="${S.lf.est===k?'on':''}" onclick="S.lf.est='${k}';render()">${n}</button>`).join('')}</div>
     ${buscador('pres', 'Buscar N°, cliente, RUC, teléfono o case')}
   </div>
-  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>N°</th><th>Cliente</th><th class="hide-m">Productos</th><th class="r">Importe</th><th class="hide-m">Estado</th><th class="hide-m">Actualizado</th></tr></thead><tbody>
+  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>N°</th><th>Cliente</th><th class="hide-m">Productos</th><th class="r">Importe <span style="font-weight:500">c/IVA</span></th><th class="hide-m">Estado</th><th class="hide-m">Actualizado</th></tr></thead><tbody>
     ${L.map(p => `<tr class="click" onclick="openDetail('${esc(p.id)}')"><td style="white-space:nowrap"><b>${esc(p.numero)}</b><div class="small muted">v${(p.versiones||[]).length||0}</div></td>
       <td>${esc(p.cliente&&p.cliente.nombre)}<div class="small muted">${esc(p.cliente&&p.cliente.empresa||'')}</div><div class="show-m" style="margin-top:4px">${estTag(p.estado, p.aprobado)}</div></td>
       <td class="hide-m small">${esc((p.productos||[]).join(', ')||'—')}</td>
-      <td class="r num" style="white-space:nowrap"><b>${p.precioFinal ? gs(p.precioFinal) : '—'}</b></td>
+      <td class="r num" style="white-space:nowrap"><b>${p.precioFinal ? gs(totalConIva(p)) : '—'}</b></td>
       <td class="hide-m">${estTag(p.estado, p.aprobado)}</td><td class="hide-m small muted">${fDate(p.actualizado||p.creado)}</td></tr>`).join('')}
   </tbody></table>` : q.trim() ? (() => { const otros = S.lf.est === 'todos' ? 0 : S.presupuestos.filter(p => coincidePres(p, q)).length; return otros ? `<div class="empty"><b>Sin resultados en esta pestaña</b>Hay ${otros} en otros estados. <button class="btn sm" style="margin-top:8px" onclick="S.lf.est='todos';render()">Ver en Todos</button></div>` : sinResultados(q); })() : `<div class="empty"><b>No hay presupuestos ${S.lf.est==='abiertos'?'abiertos':''}</b>Creá uno desde “Nuevo” o desde el Asistente.</div>`}</div>`)}`;
 }
@@ -961,7 +961,7 @@ async function setEstado(k){
 }
 async function confirmarVenta(){
   const p = S.presupuestos.find(x => x.id === S.detailId); if (!p) return;
-  const r = await dialog('Aprobado por el cliente', `<p style="margin-top:0">${esc(p.numero)} por <b>${gs(p.precioFinal)}</b>. Se generan las órdenes de trabajo (una por renglón).</p>
+  const r = await dialog('Aprobado por el cliente', `<p style="margin-top:0">${esc(p.numero)} por <b>${gs(totalConIva(p))}</b> (IVA incluido). Se generan las órdenes de trabajo (una por renglón).</p>
     <div class="grid2"><label class="f">Cómo aprobó *<select class="in" id="ac-m"><option value="">Elegir…</option><option>Orden de compra</option><option>Email</option><option>WhatsApp</option><option>Firma del presupuesto</option><option>Verbal / presencial</option></select></label>
     <label class="f">N° de orden de compra<input class="in" id="ac-oc" placeholder="Si corresponde"></label></div>
     <label class="f" style="margin-top:10px">Link a la evidencia<span class="h">Drive, captura de WhatsApp o email</span><input class="in" id="ac-l"></label>
@@ -970,7 +970,7 @@ async function confirmarVenta(){
       if (m === 'Orden de compra' && !$('#ac-oc').value.trim()) { toast('Cargá el número de la orden de compra'); return false; }
       return {medio:m, oc:$('#ac-oc').value.trim(), link:$('#ac-l').value.trim(), fechaPrometida:$('#ac-f').value, fecha:now(), por:S.me}; });
   if (!r) return;
-  await patchPres(p.id, {estado:'venta', cerradoAt:now(), aprobacionCliente:r, fechaPrometida:r.fechaPrometida}, `Aprobado por el cliente (${r.medio}${r.oc ? ' ' + r.oc : ''}) por ${gs(p.precioFinal)}`);
+  await patchPres(p.id, {estado:'venta', cerradoAt:now(), aprobacionCliente:r, fechaPrometida:r.fechaPrometida}, `Aprobado por el cliente (${r.medio}${r.oc ? ' ' + r.oc : ''}) por ${gs(totalConIva(p))} IVA incl.`);
   await generarOTsPres(r.fechaPrometida);
 }
 async function generarOTsPres(fecha){
@@ -1204,7 +1204,7 @@ async function chatStep(v, t){
     } else if (v === 'pendientes') {
       const pend = S.presupuestos.filter(p => ABIERTOS.includes(p.estado));
       if (!pend.length) bot('No hay presupuestos abiertos. 🎉');
-      else bot(pend.slice(0, 8).map(p => `${p.numero} · ${p.cliente.nombre} · ${EST[p.estado].n}${p.precioFinal ? ' · ' + gs(p.precioFinal) : ''}`).join('\n') + (pend.length > 8 ? `\n…y ${pend.length - 8} más` : ''));
+      else bot(pend.slice(0, 8).map(p => `${p.numero} · ${p.cliente.nombre} · ${EST[p.estado].n}${p.precioFinal ? ' · ' + gs(totalConIva(p)) : ''}`).join('\n') + (pend.length > 8 ? `\n…y ${pend.length - 8} más` : ''));
       chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}]);
     } else { bot('Puedo ayudarte a crear un presupuesto nuevo o consultar uno existente.'); chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar un presupuesto', v:'consultar'}, {l:'Ver pendientes', v:'pendientes'}]); }
     return drawChat();
@@ -1297,7 +1297,7 @@ function consultar(n){
   const num = 'LFL-' + String(parseInt(n,10)).padStart(3, '0');
   const p = S.presupuestos.find(x => x.numero === num);
   if (!p) bot(`No encontré ${num}.`);
-  else bot(`${p.numero} · ${p.cliente.nombre}\nEstado: ${p.estado === 'pendiente' && p.aprobado ? 'Aprobado, listo para enviar' : EST[p.estado].n}\nImporte: ${p.precioFinal ? gs(p.precioFinal) : 'sin calcular'}\nVersión: v${(p.versiones||[]).length}\nÚltimo movimiento: ${fDT(p.actualizado)}`);
+  else bot(`${p.numero} · ${p.cliente.nombre}\nEstado: ${p.estado === 'pendiente' && p.aprobado ? 'Aprobado, listo para enviar' : EST[p.estado].n}\nImporte (IVA incl.): ${p.precioFinal ? gs(totalConIva(p)) : 'sin calcular'}\nVersión: v${(p.versiones||[]).length}\nÚltimo movimiento: ${fDT(p.actualizado)}`);
   CH.step = 'inicio'; chips([{l:'Nuevo presupuesto', v:'nuevo'}, {l:'Consultar otro', v:'consultar'}, {l:'Ver pendientes', v:'pendientes'}]); drawChat();
 }
 
@@ -1748,9 +1748,9 @@ function viewClientes(){
     <button class="btn pri" onclick="editarCliente()">${IC.plus} Nuevo cliente</button></div>
   ${(() => { const sin = S.presupuestos.filter(p => p.cliente && p.cliente.nombre && !p.cliente.clienteId); return sin.length ? `<div class="note info" style="margin-bottom:14px;align-items:center">${IC.info}<div class="grow">Hay ${sin.length} presupuesto${sin.length > 1 ? 's' : ''} con clientes sin agendar (creados antes de este módulo).</div><button class="btn sm dark" onclick="importarClientes()">Agendarlos</button></div>` : ''; })()}
   <div class="row" style="margin-bottom:14px">${buscador('cli', 'Buscar por nombre, empresa, RUC o teléfono', 420)}</div>
-  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>Cliente</th><th class="hide-m">Email</th><th class="r">Presup.</th><th class="r">Ventas</th><th class="hide-m">Último movimiento</th></tr></thead><tbody>
+  ${loadingOr(`<div class="card">${L.length ? `<table class="t"><thead><tr><th>Cliente</th><th class="hide-m">Email</th><th class="r">Presup.</th><th class="r">Ventas <span style="font-weight:500">c/IVA</span></th><th class="hide-m">Último movimiento</th></tr></thead><tbody>
     ${L.map(c => { const ps = presDeCliente(c.id); const vs = ps.filter(p => p.estado === 'venta'); const ult = ps.map(p => p.actualizado || p.creado).sort().pop();
-      return `<tr class="click" onclick="fichaCliente('${esc(c.id)}')"><td>${cliLinea(c)}</td><td class="hide-m small">${esc(c.email || '—')}</td><td class="r num">${ps.length}</td><td class="r num">${vs.length ? gs(vs.reduce((s,p) => s + (+p.precioFinal||0), 0)) : '—'}</td><td class="hide-m small muted">${ult ? fDate(ult) : '—'}</td></tr>`; }).join('')}
+      return `<tr class="click" onclick="fichaCliente('${esc(c.id)}')"><td>${cliLinea(c)}</td><td class="hide-m small">${esc(c.email || '—')}</td><td class="r num">${ps.length}</td><td class="r num">${vs.length ? gs(vs.reduce((s,p) => s + totalConIva(p), 0)) : '—'}</td><td class="hide-m small muted">${ult ? fDate(ult) : '—'}</td></tr>`; }).join('')}
   </tbody></table>` : `<div class="empty"><b>${q ? 'Sin resultados' : 'Todavía no hay clientes'}</b>${q ? 'Probá con otra búsqueda.' : 'Se agendan al guardar un presupuesto, o tocá “Nuevo cliente”.'}</div>`}</div>`)}`;
 }
 async function editarCliente(id){
@@ -1792,7 +1792,7 @@ async function fichaCliente(id){
     <div class="row"><button class="btn pri sm" data-np>${IC.plus} Nuevo presupuesto</button><button class="btn sm" data-ed>Editar datos</button>
       ${S.esAdmin ? `<button class="btn sm bad" data-del>🗑 Eliminar</button>` : ''}</div>
     <h3 style="margin:16px 0 6px">Presupuestos (${ps.length})</h3>
-    ${ps.length ? `<table class="t"><tbody>${ps.map(p => `<tr class="click" data-p="${esc(p.id)}"><td><b>${esc(p.numero)}</b><div class="small muted">${fDate(p.creado)} · ${esc((p.productos||[]).join(', '))}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r num">${p.precioFinal ? gs(p.precioFinal) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Sin presupuestos todavía.</p>'}
+    ${ps.length ? `<table class="t"><tbody>${ps.map(p => `<tr class="click" data-p="${esc(p.id)}"><td><b>${esc(p.numero)}</b><div class="small muted">${fDate(p.creado)} · ${esc((p.productos||[]).join(', '))}</div></td><td>${estTag(p.estado, p.aprobado)}</td><td class="r num">${p.precioFinal ? gs(totalConIva(p)) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Sin presupuestos todavía.</p>'}
   </div>`;
   document.body.appendChild(w);
   const cerrar = () => w.remove();
@@ -3757,7 +3757,7 @@ function respaldoJSON(){
 async function respaldoExcel(){
   let X; try { X = await cargarXLSX(); } catch(e) { toast(e.message); return; }
   const wb = X.utils.book_new(); const hoja = (n, filas) => { const ws = X.utils.json_to_sheet(filas.length ? filas : [{'(sin datos)':''}]); X.utils.book_append_sheet(wb, ws, n.slice(0, 31)); };
-  hoja('Presupuestos', S.presupuestos.map(p => ({Numero:p.numero, Fecha:String(p.creado || '').slice(0, 10), Cliente:(p.cliente || {}).nombre, RUC_CI:(p.cliente || {}).documento, Estado:EST[p.estado] ? EST[p.estado].n : p.estado, Total:+p.precioFinal || 0, Margen:p.margenFinal, Comercial:nm(p.creadoPor), Facturas:numerosFactura(p).join(', ')})));
+  hoja('Presupuestos', S.presupuestos.map(p => ({Numero:p.numero, Fecha:String(p.creado || '').slice(0, 10), Cliente:(p.cliente || {}).nombre, RUC_CI:(p.cliente || {}).documento, Estado:EST[p.estado] ? EST[p.estado].n : p.estado, Total_sin_IVA:+p.precioFinal || 0, Total_con_IVA:totalConIva(p), Margen:p.margenFinal, Comercial:nm(p.creadoPor), Facturas:numerosFactura(p).join(', ')})));
   hoja('Clientes', (S.clientes || []).map(c => ({Nombre:c.nombre, Empresa:c.empresa, RazonSocial:c.razonSocial, Documento:c.documento, Telefono:c.telefono, Email:c.email})));
   hoja('Movimientos de caja', (S.movimientos || []).map(m => ({Fecha:m.fecha, Tipo:m.tipo, Categoria:m.categoria || '', Recibo:m.numeroRecibo || '', Presupuesto:((S.presupuestos.find(p => p.id === m.presupuestoId) || {}).numero) || '', OP:m.opId || '', Cuenta:((S.fondos || []).find(f => f.id === m.fondoId) || {}).nombre || '', Monto:+m.monto, Concepto:m.concepto || '', Anulado:m.anulado ? 'sí' : ''})));
   hoja('Compras', (S.compras || []).map(c => ({Fecha:c.fecha, Proveedor:provNombre(c.proveedorId), Factura:c.numeroFactura, Condicion:c.condicion, Moneda:c.moneda || 'PYG', TC:c.tc || '', Total:+c.total, Anulada:c.anulada ? 'sí' : ''})));
